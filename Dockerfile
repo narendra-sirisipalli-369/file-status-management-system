@@ -14,9 +14,9 @@ RUN npm ci --ignore-scripts
 
 COPY . .
 
-# DATABASE_URL must be set at build time so prisma generate can introspect the
-# schema. A placeholder is sufficient because generate only reads schema.prisma.
-ARG DATABASE_URL=postgresql://placeholder:placeholder@localhost:5432/placeholder
+# DATABASE_URL must be set at build time so `prisma generate` has a valid URL
+# for the configured datasource provider.
+ARG DATABASE_URL=file:./dev.db
 ENV DATABASE_URL=${DATABASE_URL}
 
 RUN npm run build

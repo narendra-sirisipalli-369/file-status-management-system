@@ -12,6 +12,7 @@ const loginSchema = z.object({
   username:   z.string().min(1),
   password:   z.string().min(1),
   department: z.string().optional(),  // selected at login time
+  portal:     z.enum(['staff', 'kiosk']).optional(),
 });
 
 export async function POST(request: Request) {
@@ -22,11 +23,33 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
     }
 
-    const { username, password, department } = parsed.data;
+    const { username, password, department, portal } = parsed.data;
     const user = await prisma.user.findUnique({ where: { username } });
 
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });
+    }
+
+    // Portal separation:
+    // - Staff portal must not accept KIOSK_USER credentials
+    // - Kiosk portal must only accept KIOSK_USER credentials
+    if (portal === 'staff' && user.role === 'KIOSK_USER') {
+      return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });
+    }
+    if (portal === 'kiosk' && user.role !== 'KIOSK_USER') {
+      return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });
+    }
+
+    // Kiosk portal must be department-specific.
+    if (portal === 'kiosk') {
+      const requested = (department ?? '').trim();
+      const assigned = (user.department ?? '').trim();
+      if (!requested || !assigned) {
+        return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });
+      }
+      if (requested.toLowerCase() !== assigned.toLowerCase()) {
+        return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });
+      }
     }
 
     // Use login-time department if provided, else fallback to user's assigned department

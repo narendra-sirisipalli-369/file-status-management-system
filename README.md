@@ -57,21 +57,40 @@ Strict 4-tier security architecture:
    ```bash
    npm install
    ```
-3. Initialize the database and run seeds:
+3. Create a local `.env` file (example):
+   ```bash
+   DATABASE_URL="file:./dev.db"
+   JWT_SECRET="replace-with-a-strong-random-secret"
+   NEXTAUTH_URL="http://localhost:3000"
+   NEXT_PUBLIC_BASE_URL="http://localhost:3000"
+   ```
+
+   > Note: SQLite paths are resolved relative to `prisma/schema.prisma`, so `file:./dev.db` points to `prisma/dev.db`.
+
+4. Initialize the database and run seeds:
    ```bash
    npx prisma generate
-   npx prisma migrate dev
+   npx prisma db push
    npm run seed
    ```
-4. Start the development server:
+5. Start the development server:
    ```bash
    npm run dev
    ```
 
 ### Deployment (Air-Gapped)
 The system is built to be **100% self-contained**.
-1. Run a production build: `npm run build`
-2. Start the production server: `npm run start`
+1. Create production env file (start from `.env.production.example`).
+2. Run a production build: `npm run build`
+3. Start the production server: `npm run start`
+
+### Docker
+Run a production container using SQLite (no external database required):
+```bash
+docker compose up --build
+```
+
+Seeded credentials are defined in `prisma/seed.ts` (e.g. `admin` / `admin123`, `kiosk` / `kiosk123`).
 
 ---
 

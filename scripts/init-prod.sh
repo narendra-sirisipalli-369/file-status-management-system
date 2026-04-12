@@ -4,7 +4,12 @@
 set -e
 
 echo "[init-prod] Running Prisma migrations..."
-npx prisma migrate deploy
+if echo "${DATABASE_URL:-}" | grep -q '^file:'; then
+  echo "[init-prod] Detected SQLite; syncing schema with prisma db push..."
+  npx prisma db push
+else
+  npx prisma migrate deploy
+fi
 
 echo "[init-prod] Starting Next.js production server..."
 exec npm start

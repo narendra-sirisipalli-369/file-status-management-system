@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import QRCode from 'react-qr-code';
+import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { STAGES, formatINR } from '@/lib/qrService';
 import { buildKioskTrackUrl } from '@/lib/trackingId';
 
@@ -10,6 +11,14 @@ const DEPARTMENTS = ['Logistics', 'INAS 321', 'INAS 324', 'INAS 551', 'RO', 'INA
 const FILE_TYPES  = ['Flash', 'Head', 'GEM/800(E)', 'Manual Tender', 'PAC', 'RFP'];
 
 export default function FileEntryPage() {
+  const dateRowRef = useRef<HTMLDivElement | null>(null);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [dateMonth, setDateMonth] = useState(() => new Date());
+  const [yearOptions] = useState(() => {
+    const now = new Date().getFullYear();
+    const start = now - 10;
+    return Array.from({ length: 21 }, (_, i) => start + i);
+  });
   const [form, setForm] = useState({
     description:    '',
     proposalValue:  '',
@@ -34,6 +43,61 @@ export default function FileEntryPage() {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
   };
+
+  const toggleDatePicker = () => {
+    setDatePickerOpen(open => !open);
+  };
+
+  const fmtDateForDisplay = (iso: string) => {
+    // iso: YYYY-MM-DD -> display: MM / DD / YYYY (matches placeholder style)
+    const [y, m, d] = iso.split('-');
+    if (!y || !m || !d) return iso;
+    return `${m} / ${d} / ${y}`;
+  };
+
+  const parseIsoDate = (iso: string) => {
+    if (!iso) return null;
+    const [y, m, d] = iso.split('-').map(Number);
+    if (!y || !m || !d) return null;
+    return new Date(y, m - 1, d);
+  };
+
+  const toIsoDate = (date: Date) => {
+    const yyyy = `${date.getFullYear()}`;
+    const mm = `${date.getMonth() + 1}`.padStart(2, '0');
+    const dd = `${date.getDate()}`.padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const getMonthMatrix = (monthDate: Date) => {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const first = new Date(year, month, 1);
+    const startDay = first.getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells: Array<number | null> = [];
+    for (let i = 0; i < startDay; i += 1) cells.push(null);
+    for (let day = 1; day <= daysInMonth; day += 1) cells.push(day);
+    return { year, month, cells };
+  };
+
+  useEffect(() => {
+    if (datePickerOpen) {
+      const selected = parseIsoDate(form.dateSubmission);
+      setDateMonth(selected ?? new Date());
+    }
+  }, [datePickerOpen, form.dateSubmission]);
+
+  useEffect(() => {
+    if (!datePickerOpen) return;
+    const onClick = (event: MouseEvent) => {
+      if (!dateRowRef.current?.contains(event.target as Node)) {
+        setDatePickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [datePickerOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,16 +236,98 @@ export default function FileEntryPage() {
                 </div>
 
                 <div className="input-group" style={{ gridColumn: '1 / -1' }}>
-                  <label htmlFor="entry-date">Date of Submission</label>
-                  <input
-                    id="entry-date"
-                    name="dateSubmission"
-                    type="date"
-                    className="input-field"
-                    value={form.dateSubmission}
-                    onChange={handleChange}
-                    style={{ colorScheme: 'light' }}
-                  />
+                  <label htmlFor="entry-date-display">Date of Submission</label>
+                  <div className="date-row" ref={dateRowRef}>
+                    <input
+                      id="entry-date-display"
+                      type="text"
+                      className="input-field date-field"
+                      value={form.dateSubmission ? fmtDateForDisplay(form.dateSubmission) : ''}
+                      placeholder="mm / dd / yyyy"
+                      readOnly
+                      onClick={toggleDatePicker}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          toggleDatePicker();
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="date-toggle"
+                      aria-label={datePickerOpen ? 'Close calendar' : 'Open calendar'}
+                      aria-pressed={datePickerOpen}
+                      onMouseDown={e => e.preventDefault()}
+                      onClick={toggleDatePicker}
+                    >
+                      <Calendar size={18} aria-hidden="true" />
+                    </button>
+                    {datePickerOpen && (
+                      <div className="calendar-popover" role="dialog" aria-label="Choose Date of Submission">
+                        <div className="calendar-header">
+                          <button
+                            type="button"
+                            className="calendar-nav"
+                            aria-label="Previous month"
+                            onClick={() => setDateMonth(new Date(dateMonth.getFullYear(), dateMonth.getMonth() - 1, 1))}
+                          >
+                            <ChevronLeft size={16} />
+                          </button>
+                          <div className="calendar-title">
+                            {dateMonth.toLocaleString('en-US', { month: 'long' })}
+                          </div>
+                          <select
+                            className="calendar-year"
+                            aria-label="Select year"
+                            value={dateMonth.getFullYear()}
+                            onChange={e => {
+                              const year = Number(e.target.value);
+                              setDateMonth(new Date(year, dateMonth.getMonth(), 1));
+                            }}
+                          >
+                            {yearOptions.map(year => (
+                              <option key={year} value={year}>{year}</option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="calendar-nav"
+                            aria-label="Next month"
+                            onClick={() => setDateMonth(new Date(dateMonth.getFullYear(), dateMonth.getMonth() + 1, 1))}
+                          >
+                            <ChevronRight size={16} />
+                          </button>
+                        </div>
+                        <div className="calendar-week">
+                          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                            <span key={day}>{day}</span>
+                          ))}
+                        </div>
+                        <div className="calendar-grid">
+                          {getMonthMatrix(dateMonth).cells.map((day, idx) => {
+                            if (!day) return <span key={`e-${idx}`} className="calendar-day is-empty" />;
+                            const date = new Date(dateMonth.getFullYear(), dateMonth.getMonth(), day);
+                            const iso = toIsoDate(date);
+                            const selected = iso === form.dateSubmission;
+                            return (
+                              <button
+                                type="button"
+                                key={`e-${idx}`}
+                                className={`calendar-day${selected ? ' is-selected' : ''}`}
+                                onClick={() => {
+                                  setForm(prev => ({ ...prev, dateSubmission: iso }));
+                                  setDatePickerOpen(false);
+                                }}
+                              >
+                                {day}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="input-group" style={{ gridColumn: '1 / -1' }}>
@@ -218,17 +364,17 @@ export default function FileEntryPage() {
               </div>
 
               {/* Processing pipeline preview */}
-              <div style={{ margin: 'var(--space-md) 0', padding: 'var(--space-sm)', background: 'var(--bg-light)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--navy)', marginBottom: '0.4rem' }}>
+              <div style={{ margin: 'var(--space-md) 0', padding: 'var(--space-md)', background: 'var(--bg-light)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+                <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--navy)', marginBottom: '0.55rem' }}>
                   Processing Pipeline
                 </div>
-                <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                   {STAGES.map((s, i) => (
                     <span key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                       <span style={{
-                        fontSize: '0.58rem',
-                        padding: '2px 6px',
-                        borderRadius: 2,
+                        fontSize: '0.7rem',
+                        padding: '4px 10px',
+                        borderRadius: 6,
                         background: i === 0 ? 'var(--navy)' : 'var(--bg-light)',
                         color: i === 0 ? '#fff' : 'var(--text-muted)',
                         border: '1px solid var(--border)',
@@ -237,7 +383,7 @@ export default function FileEntryPage() {
                       }}>
                         {s.short}
                       </span>
-                      {i < STAGES.length - 1 && <span style={{ color: 'var(--text-muted)', fontSize: '0.6rem' }}>-</span>}
+                      {i < STAGES.length - 1 && <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>-</span>}
                     </span>
                   ))}
                 </div>
@@ -291,7 +437,7 @@ export default function FileEntryPage() {
                   </a>
                 </>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', opacity: 0.5 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', opacity: 0.7 }}>
                   <svg width="84" height="84" viewBox="0 0 64 64" fill="none" aria-hidden="true" style={{ marginBottom: 'var(--space-lg)', color: 'var(--border)' }}>
                     <rect x="4" y="4" width="24" height="24" rx="2" stroke="currentColor" strokeWidth="2"/>
                     <rect x="10" y="10" width="12" height="12" rx="1" fill="currentColor" opacity="0.6"/>

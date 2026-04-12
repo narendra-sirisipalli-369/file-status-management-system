@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { STAGES, formatDate, formatDateTime } from '@/lib/qrService';
 
 type StageCount = { stage: string; count: number; color: string };
@@ -33,6 +34,38 @@ const STAGE_COLORS: Record<string, string> = {
   'Bid Awarded':      'var(--neon-green)',
 };
 
+function fmtDateForDisplay(iso: string) {
+  const [y, m, d] = iso.split('-');
+  if (!y || !m || !d) return iso;
+  return `${m} / ${d} / ${y}`;
+}
+
+function parseIsoDate(iso: string) {
+  if (!iso) return null;
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+}
+
+function toIsoDate(date: Date) {
+  const yyyy = `${date.getFullYear()}`;
+  const mm = `${date.getMonth() + 1}`.padStart(2, '0');
+  const dd = `${date.getDate()}`.padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function getMonthMatrix(monthDate: Date) {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const first = new Date(year, month, 1);
+  const startDay = first.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: Array<number | null> = [];
+  for (let i = 0; i < startDay; i += 1) cells.push(null);
+  for (let day = 1; day <= daysInMonth; day += 1) cells.push(day);
+  return { year, month, cells };
+}
+
 export default function FlowChartsPage() {
   const [files,     setFiles]     = useState<FlowFile[]>([]);
   const [stage,     setStage]     = useState('');
@@ -41,9 +74,63 @@ export default function FlowChartsPage() {
   const [loading,   setLoading]   = useState(true);
   const [now,       setNow]       = useState('');
 
+  const fromRowRef = useRef<HTMLDivElement | null>(null);
+  const toRowRef = useRef<HTMLDivElement | null>(null);
+  const [fromOpen, setFromOpen] = useState(false);
+  const [toOpen, setToOpen] = useState(false);
+  const [fromMonth, setFromMonth] = useState(() => new Date());
+  const [toMonth, setToMonth] = useState(() => new Date());
+  const [yearOptions] = useState(() => {
+    const nowYear = new Date().getFullYear();
+    const start = nowYear - 10;
+    return Array.from({ length: 21 }, (_, i) => start + i);
+  });
+
+  const togglePicker = (which: 'from' | 'to') => {
+    const open = which === 'from' ? fromOpen : toOpen;
+    const setOpen = which === 'from' ? setFromOpen : setToOpen;
+    setOpen(!open);
+  };
+
   useEffect(() => {
     setNow(new Date().toLocaleString('en-IN'));
   }, []);
+
+  useEffect(() => {
+    if (fromOpen) {
+      const selected = parseIsoDate(fromDate);
+      setFromMonth(selected ?? new Date());
+    }
+  }, [fromOpen, fromDate]);
+
+  useEffect(() => {
+    if (toOpen) {
+      const selected = parseIsoDate(toDate);
+      setToMonth(selected ?? new Date());
+    }
+  }, [toOpen, toDate]);
+
+  useEffect(() => {
+    if (!fromOpen) return;
+    const onClick = (event: MouseEvent) => {
+      if (!fromRowRef.current?.contains(event.target as Node)) {
+        setFromOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [fromOpen]);
+
+  useEffect(() => {
+    if (!toOpen) return;
+    const onClick = (event: MouseEvent) => {
+      if (!toRowRef.current?.contains(event.target as Node)) {
+        setToOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [toOpen]);
 
   const fetchFiles = async () => {
     setLoading(true);
@@ -96,11 +183,191 @@ export default function FlowChartsPage() {
           >
             <div className="input-group">
               <label>From Date</label>
-              <input type="date" className="input-field" value={fromDate} onChange={e => setFromDate(e.target.value)} />
+              <div className="date-row" ref={fromRowRef}>
+                <input
+                  id="flow-from-display"
+                  type="text"
+                  className="input-field date-field"
+                  value={fromDate ? fmtDateForDisplay(fromDate) : ''}
+                  placeholder="mm / dd / yyyy"
+                  readOnly
+                  onClick={() => togglePicker('from')}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      togglePicker('from');
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="date-toggle"
+                  aria-label={fromOpen ? 'Close calendar' : 'Open calendar'}
+                  aria-pressed={fromOpen}
+                  onMouseDown={e => e.preventDefault()}
+                  onClick={() => togglePicker('from')}
+                >
+                  <Calendar size={18} aria-hidden="true" />
+                </button>
+                {fromOpen && (
+                  <div className="calendar-popover" role="dialog" aria-label="Choose From Date">
+                    <div className="calendar-header">
+                      <button
+                        type="button"
+                        className="calendar-nav"
+                        aria-label="Previous month"
+                        onClick={() => setFromMonth(new Date(fromMonth.getFullYear(), fromMonth.getMonth() - 1, 1))}
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+                      <div className="calendar-title">
+                        {fromMonth.toLocaleString('en-US', { month: 'long' })}
+                      </div>
+                      <select
+                        className="calendar-year"
+                        aria-label="Select year"
+                        value={fromMonth.getFullYear()}
+                        onChange={e => {
+                          const year = Number(e.target.value);
+                          setFromMonth(new Date(year, fromMonth.getMonth(), 1));
+                        }}
+                      >
+                        {yearOptions.map(year => (
+                          <option key={year} value={year}>{year}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="calendar-nav"
+                        aria-label="Next month"
+                        onClick={() => setFromMonth(new Date(fromMonth.getFullYear(), fromMonth.getMonth() + 1, 1))}
+                      >
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+                    <div className="calendar-week">
+                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                        <span key={day}>{day}</span>
+                      ))}
+                    </div>
+                    <div className="calendar-grid">
+                      {getMonthMatrix(fromMonth).cells.map((day, idx) => {
+                        if (!day) return <span key={`ff-${idx}`} className="calendar-day is-empty" />;
+                        const date = new Date(fromMonth.getFullYear(), fromMonth.getMonth(), day);
+                        const iso = toIsoDate(date);
+                        const selected = iso === fromDate;
+                        return (
+                          <button
+                            type="button"
+                            key={`ff-${idx}`}
+                            className={`calendar-day${selected ? ' is-selected' : ''}`}
+                            onClick={() => {
+                              setFromDate(iso);
+                              setFromOpen(false);
+                            }}
+                          >
+                            {day}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="input-group">
               <label>To Date</label>
-              <input type="date" className="input-field" value={toDate} onChange={e => setToDate(e.target.value)} />
+              <div className="date-row" ref={toRowRef}>
+                <input
+                  id="flow-to-display"
+                  type="text"
+                  className="input-field date-field"
+                  value={toDate ? fmtDateForDisplay(toDate) : ''}
+                  placeholder="mm / dd / yyyy"
+                  readOnly
+                  onClick={() => togglePicker('to')}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      togglePicker('to');
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="date-toggle"
+                  aria-label={toOpen ? 'Close calendar' : 'Open calendar'}
+                  aria-pressed={toOpen}
+                  onMouseDown={e => e.preventDefault()}
+                  onClick={() => togglePicker('to')}
+                >
+                  <Calendar size={18} aria-hidden="true" />
+                </button>
+                {toOpen && (
+                  <div className="calendar-popover" role="dialog" aria-label="Choose To Date">
+                    <div className="calendar-header">
+                      <button
+                        type="button"
+                        className="calendar-nav"
+                        aria-label="Previous month"
+                        onClick={() => setToMonth(new Date(toMonth.getFullYear(), toMonth.getMonth() - 1, 1))}
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+                      <div className="calendar-title">
+                        {toMonth.toLocaleString('en-US', { month: 'long' })}
+                      </div>
+                      <select
+                        className="calendar-year"
+                        aria-label="Select year"
+                        value={toMonth.getFullYear()}
+                        onChange={e => {
+                          const year = Number(e.target.value);
+                          setToMonth(new Date(year, toMonth.getMonth(), 1));
+                        }}
+                      >
+                        {yearOptions.map(year => (
+                          <option key={year} value={year}>{year}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="calendar-nav"
+                        aria-label="Next month"
+                        onClick={() => setToMonth(new Date(toMonth.getFullYear(), toMonth.getMonth() + 1, 1))}
+                      >
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+                    <div className="calendar-week">
+                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                        <span key={day}>{day}</span>
+                      ))}
+                    </div>
+                    <div className="calendar-grid">
+                      {getMonthMatrix(toMonth).cells.map((day, idx) => {
+                        if (!day) return <span key={`ft-${idx}`} className="calendar-day is-empty" />;
+                        const date = new Date(toMonth.getFullYear(), toMonth.getMonth(), day);
+                        const iso = toIsoDate(date);
+                        const selected = iso === toDate;
+                        return (
+                          <button
+                            type="button"
+                            key={`ft-${idx}`}
+                            className={`calendar-day${selected ? ' is-selected' : ''}`}
+                            onClick={() => {
+                              setToDate(iso);
+                              setToOpen(false);
+                            }}
+                          >
+                            {day}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="input-group">
               <label>Filter by Stage</label>

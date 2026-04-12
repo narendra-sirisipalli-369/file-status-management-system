@@ -10,7 +10,7 @@ const NAV_ITEMS_BLOGO = [
   { href: '/admin/files',       label: 'File Search'   },
   { href: '/admin/reports',     label: 'Reports'       },
   { href: '/admin/flow-charts', label: 'Flow Charts'   },
-  { href: '/admin/users',       label: 'User Mgmt'     },
+  { href: '/admin/users',       label: 'User Management'     },
 ];
 
 const NAV_ITEMS_DLOGO = [

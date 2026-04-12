@@ -1,9 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useISTClock } from '@/hooks/useISTClock';
-import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 
 /**
  * Kiosk File Detail — Screen 4
@@ -30,9 +28,6 @@ function fmtINR(v: number) {
 
 export default function KioskFileDetailPage({ params }: { params: { fileId: string } }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const department = searchParams.get('department') ?? 'Logistics';
-  const { time } = useISTClock();
   const [file, setFile] = useState<FileRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -65,27 +60,7 @@ export default function KioskFileDetailPage({ params }: { params: { fileId: stri
 
   return (
     <div style={{ minHeight: '100vh', background: '#f4f4f8' }}>
-      {/* Top Navigation Bar */}
-      <nav style={{
-        background: '#000080', borderBottom: '3px solid #b8860b',
-        padding: '0 2rem', display: 'flex', alignItems: 'center',
-        justifyContent: 'space-between', height: 64,
-        fontFamily: 'Arial, Helvetica, sans-serif',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <Image src="/logo/ins-dega.png" alt="INS Dega" width={48} height={48} style={{ objectFit: 'contain' }} priority />
-          <div style={{ fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#fff' }}>
-            INS DEGA
-            <span style={{ display: 'block', fontWeight: 400, fontSize: '0.6rem', color: 'rgba(255,255,255,0.7)' }}>{department}</span>
-          </div>
-        </div>
-        <div style={{ fontFamily: "'Courier New', monospace", fontWeight: 700, fontSize: '0.9rem', color: 'rgba(255,255,255,0.9)' }}>
-          {time || '00:00:00'} IST
-        </div>
-        <Image src="/logo/eastern-command.png" alt="Eastern Naval Command" width={48} height={48} style={{ objectFit: 'contain' }} priority />
-      </nav>
-
-      <div style={{ padding: '1.5rem', maxWidth: 900, margin: '0 auto' }}>
+      <div style={{ padding: '1.5rem', maxWidth: '95vw', margin: '0 auto' }}>
         {/* Header + Back */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <div>

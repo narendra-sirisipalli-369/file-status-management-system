@@ -9,6 +9,17 @@
 
 /* ── CSS TOKENS ── */
 :root {
+  /* Fonts (offline-safe) */
+  --font-body: Arial, sans-serif;
+  --font-nav: Arial, sans-serif;
+  --font-mono: Arial, sans-serif;
+
+  /* Touch targets / radii */
+  --touch-min: 48px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
   --nav-bg: #000080;
   --page-bg: #FFFFFF;
   --text-main: #333333;
@@ -127,18 +138,31 @@ body {
 
 a { color: inherit; text-decoration: none; }
 button { font-family: inherit; cursor: pointer; }
-input, select, textarea { font-family: inherit; }
+input, select, textarea { font-family: Arial, sans-serif; }
 
 button,
-input,
-select,
-textarea,
 a.btn,
 .subnav-link,
 .topnav-signout,
 .row-btn {
   min-height: var(--touch-min);
   cursor: pointer;
+}
+
+/* Text caret cursor for editable fields */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+textarea {
+  cursor: text;
+}
+
+select {
+  cursor: pointer;
+}
+
+input:disabled,
+textarea:disabled,
+select:disabled {
+  cursor: not-allowed;
 }
 
 /* ── LAYOUT ── */
@@ -174,11 +198,17 @@ a.btn,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 84px;
+  height: 92px;
   position: sticky;
   top: 0;
   z-index: var(--z-nav);
   box-shadow: var(--elevate-1);
+}
+
+.topnav--login {
+  height: 104px;
+  padding: 0 3rem;
+  border-bottom-width: 5px;
 }
 
 .topnav-left {
@@ -258,9 +288,79 @@ a.btn,
   background: rgba(255,255,255,0.22);
 }
 
+/* Top-right session menu (power icon + dropdown) */
+.topnav-menu {
+  position: relative;
+}
+
+.topnav-menu > summary {
+  list-style: none;
+}
+
+.topnav-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.topnav-menu-button {
+  padding: 0.4rem 0.75rem;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: var(--radius-sm);
+  color: var(--text-white);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  min-width: 44px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.topnav-menu-button:hover {
+  background: rgba(255,255,255,0.22);
+}
+
+.topnav-menu-button:focus-visible {
+  outline: 2px solid rgba(255,255,255,0.65);
+  outline-offset: 2px;
+}
+
+.topnav-menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  min-width: 160px;
+  background: rgba(8, 12, 32, 0.98);
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 10px;
+  box-shadow: var(--elevate-2);
+  padding: 0.35rem;
+  z-index: calc(var(--z-nav) + 1);
+}
+
+.topnav-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  color: rgba(255,255,255,0.95);
+  font-family: Arial, sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: var(--letter-spacing-tech);
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.topnav-menu-item:hover {
+  background: rgba(255,255,255,0.10);
+}
+
 /* IST Clock */
 .ist-clock {
-  font-family: var(--font-mono);
+  font-family: Arial, sans-serif;
   font-size: 0.8rem;
   color: rgba(255,255,255,0.9);
   letter-spacing: 0.05em;
@@ -412,6 +512,174 @@ select.input-field {
 }
 
 select.input-field option { background: #fff; color: var(--text-primary); }
+
+.date-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.date-field {
+  padding-right: 2.75rem;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.date-native {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.date-field::-webkit-calendar-picker-indicator {
+  opacity: 0 !important;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  pointer-events: none !important;
+}
+
+.date-field::-webkit-clear-button,
+.date-field::-webkit-inner-spin-button {
+  display: none;
+}
+
+.date-toggle {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.date-toggle:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.date-toggle:focus-visible {
+  outline: 2px solid rgba(0, 0, 128, 0.35);
+  outline-offset: 2px;
+}
+
+.calendar-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  left: auto;
+  z-index: 30;
+  width: 280px;
+  background: #ffffff;
+  border: 1px solid #d9e0ec;
+  border-radius: 12px;
+  box-shadow: 0 14px 28px rgba(10, 32, 68, 0.16);
+  padding: 0.9rem 0.9rem 0.75rem;
+}
+
+.calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.calendar-title {
+  font-family: Arial, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nav-bg);
+}
+
+.calendar-year {
+  border: 1px solid #d9e0ec;
+  background: #f7f8fb;
+  color: var(--text-primary);
+  height: 28px;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0 0.4rem;
+  cursor: pointer;
+}
+
+.calendar-year:focus-visible {
+  outline: 2px solid rgba(0, 0, 128, 0.35);
+  outline-offset: 2px;
+}
+
+.calendar-nav {
+  border: 1px solid #d9e0ec;
+  background: #f7f8fb;
+  color: var(--text-secondary);
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.calendar-nav:hover {
+  background: #eef1f7;
+}
+
+.calendar-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.2rem;
+  margin-bottom: 0.4rem;
+  color: #6a7380;
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.2rem;
+}
+
+.calendar-day {
+  border: 0;
+  background: transparent;
+  color: #1e2a3b;
+  border-radius: 8px;
+  height: 32px;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.calendar-day:hover {
+  background: #eef3ff;
+  color: var(--nav-bg);
+}
+
+.calendar-day.is-selected {
+  background: var(--nav-bg);
+  color: #ffffff;
+}
+
+.calendar-day.is-empty {
+  pointer-events: none;
+}
 
 /* ── BUTTONS ── */
 .btn {

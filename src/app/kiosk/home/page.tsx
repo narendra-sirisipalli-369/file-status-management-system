@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useISTClock } from '@/hooks/useISTClock';
 import Image from 'next/image';
+import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 
 /**
  * Kiosk Home / Search Page — Screen 2
@@ -17,11 +17,95 @@ function KioskHomePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const department = searchParams.get('department') ?? 'Logistics';
-  const { time, date } = useISTClock();
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
-  const [smsRefNo, setSmsRefNo] = useState('');
   const [error, setError] = useState('');
+
+  const fromRowRef = useRef<HTMLDivElement | null>(null);
+  const toRowRef = useRef<HTMLDivElement | null>(null);
+  const [fromOpen, setFromOpen] = useState(false);
+  const [toOpen, setToOpen] = useState(false);
+  const [fromMonth, setFromMonth] = useState(() => new Date());
+  const [toMonth, setToMonth] = useState(() => new Date());
+  const [yearOptions] = useState(() => {
+    const now = new Date().getFullYear();
+    const start = now - 10;
+    return Array.from({ length: 21 }, (_, i) => start + i);
+  });
+
+  const togglePicker = (which: 'from' | 'to') => {
+    const open = which === 'from' ? fromOpen : toOpen;
+    const setOpen = which === 'from' ? setFromOpen : setToOpen;
+    setOpen(!open);
+  };
+
+  const fmtDateForDisplay = (iso: string) => {
+    const [y, m, d] = iso.split('-');
+    if (!y || !m || !d) return iso;
+    return `${m} / ${d} / ${y}`;
+  };
+
+  const parseIsoDate = (iso: string) => {
+    if (!iso) return null;
+    const [y, m, d] = iso.split('-').map(Number);
+    if (!y || !m || !d) return null;
+    return new Date(y, m - 1, d);
+  };
+
+  const toIsoDate = (date: Date) => {
+    const yyyy = `${date.getFullYear()}`;
+    const mm = `${date.getMonth() + 1}`.padStart(2, '0');
+    const dd = `${date.getDate()}`.padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const getMonthMatrix = (monthDate: Date) => {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const first = new Date(year, month, 1);
+    const startDay = first.getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells: Array<number | null> = [];
+    for (let i = 0; i < startDay; i += 1) cells.push(null);
+    for (let day = 1; day <= daysInMonth; day += 1) cells.push(day);
+    return { year, month, cells };
+  };
+
+  useEffect(() => {
+    if (fromOpen) {
+      const selected = parseIsoDate(fromDate);
+      setFromMonth(selected ?? new Date());
+    }
+  }, [fromOpen, fromDate]);
+
+  useEffect(() => {
+    if (toOpen) {
+      const selected = parseIsoDate(toDate);
+      setToMonth(selected ?? new Date());
+    }
+  }, [toOpen, toDate]);
+
+  useEffect(() => {
+    if (!fromOpen) return;
+    const onClick = (event: MouseEvent) => {
+      if (!fromRowRef.current?.contains(event.target as Node)) {
+        setFromOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [fromOpen]);
+
+  useEffect(() => {
+    if (!toOpen) return;
+    const onClick = (event: MouseEvent) => {
+      if (!toRowRef.current?.contains(event.target as Node)) {
+        setToOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [toOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,76 +117,36 @@ function KioskHomePageInner() {
     const params = new URLSearchParams({ department });
     if (fromDate) params.set('from', fromDate);
     if (toDate) params.set('to', toDate);
-    if (smsRefNo.trim()) params.set('smsRefNo', smsRefNo.trim());
     router.push(`/kiosk/files?${params.toString()}`);
   };
 
   return (
     <div style={{ minHeight: '100vh', background: '#f4f4f8' }}>
-      {/* Top Navigation Bar */}
-      <nav style={{
-        background: '#000080', borderBottom: '3px solid #b8860b',
-        padding: '0 2rem', display: 'flex', alignItems: 'center',
-        justifyContent: 'space-between', height: 64,
-        fontFamily: 'Arial, Helvetica, sans-serif',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <Image src="/logo/ins-dega.png" alt="INS Dega" width={48} height={48} style={{ objectFit: 'contain' }} priority />
-          <div>
-            <div style={{ fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#fff' }}>
-              INS DEGA
-              <span style={{ display: 'block', fontWeight: 400, fontSize: '0.6rem', color: 'rgba(255,255,255,0.7)', letterSpacing: '0.06em' }}>Logistics Department</span>
-            </div>
-          </div>
-        </div>
-        <div style={{ fontWeight: 700, fontSize: '1rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff' }}>
-          File Status Management
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontFamily: "'Courier New', monospace", fontWeight: 700, fontSize: '0.9rem', color: 'rgba(255,255,255,0.9)' }}>{time || '00:00:00 AM'}</div>
-            <div style={{ fontSize: '0.55rem', color: 'rgba(255,255,255,0.55)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>IST</div>
-          </div>
-          <Image src="/logo/eastern-command.png" alt="Eastern Naval Command" width={48} height={48} style={{ objectFit: 'contain' }} priority />
-        </div>
-      </nav>
-
       <div style={{ padding: '1.25rem' }}>
-        {/* Meta row: department + clock */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '2rem' }}>
-          <div style={{
-            border: '1px solid #E2E8F0', borderRadius: 6, background: '#fff', padding: '0.9rem 1rem',
-          }}>
-            <div style={{ fontFamily: 'Arial, sans-serif', fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5c6673' }}>
-              Selected Department
-            </div>
-            <div style={{ marginTop: '0.2rem', color: '#333', fontSize: '1rem', fontWeight: 600 }}>
-              {department}
-            </div>
-          </div>
-          <div style={{
-            border: '1px solid #E2E8F0', borderRadius: 6, background: '#fff', padding: '0.9rem 1rem', textAlign: 'right',
-          }}>
-            <div style={{ fontFamily: "'Courier New', monospace", fontSize: '1.1rem', fontWeight: 700, color: '#000080' }}>{time || '00:00:00 AM'}</div>
-            <div style={{ fontSize: '0.75rem', color: '#333' }}>{date}</div>
-            <div style={{ marginTop: '0.2rem', fontSize: '0.62rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6c7783' }}>
-              Indian Standard Time (IST)
-            </div>
-          </div>
-        </div>
-
         {/* Search Card */}
         <div style={{
           width: '100%', maxWidth: 760, margin: '0 auto',
           border: '1px solid #E2E8F0', borderTop: '4px solid #000080',
           borderRadius: 8, background: '#fff', padding: '1.5rem',
         }}>
+          <div style={{
+            border: '1px solid #E2E8F0', borderRadius: 6, background: '#fff',
+            padding: '0.65rem 0.85rem', display: 'inline-flex', flexDirection: 'column',
+            alignItems: 'flex-start', gap: '0.2rem', marginBottom: '0.9rem',
+          }}>
+            <div style={{ fontFamily: 'Arial, sans-serif', fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5c6673' }}>
+              Selected Department
+            </div>
+            <div style={{ color: '#333', fontSize: '0.95rem', fontWeight: 600 }}>
+              {department}
+            </div>
+          </div>
           <h1 style={{
             fontFamily: 'Arial, sans-serif', fontSize: '0.9rem', fontWeight: 700,
             textTransform: 'uppercase', letterSpacing: '0.1em', color: '#000080',
           }}>Date Range Search</h1>
           <p style={{ marginTop: '0.25rem', marginBottom: '1rem', color: '#59616b', fontSize: '0.82rem' }}>
-            Select the file submission date range and optional SMS Reference Number.
+            Select the file submission date range.
           </p>
 
           {error && (
@@ -113,22 +157,197 @@ function KioskHomePageInner() {
           )}
 
           <form onSubmit={handleSubmit}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                <label htmlFor="from-date" style={{ fontFamily: 'Arial, sans-serif', fontSize: '0.66rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#333' }}>From Date</label>
-                <input id="from-date" type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
-                  style={{ minHeight: 48, border: '1px solid #c7d1e0', borderRadius: 4, background: '#fff', color: '#333', padding: '0 0.875rem', fontSize: '0.9rem', cursor: 'pointer' }} />
+                <label htmlFor="from-date-display" style={{ fontFamily: 'Arial, sans-serif', fontSize: '0.66rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#333' }}>From Date</label>
+                <div className="date-row" ref={fromRowRef}>
+                  <input
+                    id="from-date-display"
+                    type="text"
+                    className="date-field"
+                    value={fromDate ? fmtDateForDisplay(fromDate) : ''}
+                    placeholder="mm / dd / yyyy"
+                    readOnly
+                    onClick={() => togglePicker('from')}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        togglePicker('from');
+                      }
+                    }}
+                    style={{ minHeight: 48, border: '1px solid #c7d1e0', borderRadius: 4, background: '#fff', color: '#333', padding: '0 0.875rem', fontSize: '0.9rem', width: '100%' }}
+                  />
+                  <button
+                    type="button"
+                    className="date-toggle"
+                    aria-label={fromOpen ? 'Close calendar' : 'Open calendar'}
+                    aria-pressed={fromOpen}
+                    onMouseDown={e => e.preventDefault()}
+                    onClick={() => togglePicker('from')}
+                  >
+                    <Calendar size={18} aria-hidden="true" />
+                  </button>
+                  {fromOpen && (
+                    <div className="calendar-popover" role="dialog" aria-label="Choose From Date">
+                      <div className="calendar-header">
+                        <button
+                          type="button"
+                          className="calendar-nav"
+                          aria-label="Previous month"
+                          onClick={() => setFromMonth(new Date(fromMonth.getFullYear(), fromMonth.getMonth() - 1, 1))}
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                      <div className="calendar-title">
+                        {fromMonth.toLocaleString('en-US', { month: 'long' })}
+                      </div>
+                      <select
+                        className="calendar-year"
+                        aria-label="Select year"
+                        value={fromMonth.getFullYear()}
+                        onChange={e => {
+                          const year = Number(e.target.value);
+                          setFromMonth(new Date(year, fromMonth.getMonth(), 1));
+                        }}
+                      >
+                        {yearOptions.map(year => (
+                          <option key={year} value={year}>{year}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="calendar-nav"
+                          aria-label="Next month"
+                          onClick={() => setFromMonth(new Date(fromMonth.getFullYear(), fromMonth.getMonth() + 1, 1))}
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                      <div className="calendar-week">
+                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                          <span key={day}>{day}</span>
+                        ))}
+                      </div>
+                      <div className="calendar-grid">
+                        {getMonthMatrix(fromMonth).cells.map((day, idx) => {
+                          if (!day) return <span key={`f-${idx}`} className="calendar-day is-empty" />;
+                          const date = new Date(fromMonth.getFullYear(), fromMonth.getMonth(), day);
+                          const iso = toIsoDate(date);
+                          const selected = iso === fromDate;
+                          return (
+                            <button
+                              type="button"
+                              key={`f-${idx}`}
+                              className={`calendar-day${selected ? ' is-selected' : ''}`}
+                              onClick={() => {
+                                setFromDate(iso);
+                                setFromOpen(false);
+                              }}
+                            >
+                              {day}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                <label htmlFor="to-date" style={{ fontFamily: 'Arial, sans-serif', fontSize: '0.66rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#333' }}>To Date</label>
-                <input id="to-date" type="date" value={toDate} onChange={e => setToDate(e.target.value)}
-                  style={{ minHeight: 48, border: '1px solid #c7d1e0', borderRadius: 4, background: '#fff', color: '#333', padding: '0 0.875rem', fontSize: '0.9rem', cursor: 'pointer' }} />
+                <label htmlFor="to-date-display" style={{ fontFamily: 'Arial, sans-serif', fontSize: '0.66rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#333' }}>To Date</label>
+                <div className="date-row" ref={toRowRef}>
+                  <input
+                    id="to-date-display"
+                    type="text"
+                    className="date-field"
+                    value={toDate ? fmtDateForDisplay(toDate) : ''}
+                    placeholder="mm / dd / yyyy"
+                    readOnly
+                    onClick={() => togglePicker('to')}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        togglePicker('to');
+                      }
+                    }}
+                    style={{ minHeight: 48, border: '1px solid #c7d1e0', borderRadius: 4, background: '#fff', color: '#333', padding: '0 0.875rem', fontSize: '0.9rem', width: '100%' }}
+                  />
+                  <button
+                    type="button"
+                    className="date-toggle"
+                    aria-label={toOpen ? 'Close calendar' : 'Open calendar'}
+                    aria-pressed={toOpen}
+                    onMouseDown={e => e.preventDefault()}
+                    onClick={() => togglePicker('to')}
+                  >
+                    <Calendar size={18} aria-hidden="true" />
+                  </button>
+                  {toOpen && (
+                    <div className="calendar-popover" role="dialog" aria-label="Choose To Date">
+                      <div className="calendar-header">
+                        <button
+                          type="button"
+                          className="calendar-nav"
+                          aria-label="Previous month"
+                          onClick={() => setToMonth(new Date(toMonth.getFullYear(), toMonth.getMonth() - 1, 1))}
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                      <div className="calendar-title">
+                        {toMonth.toLocaleString('en-US', { month: 'long' })}
+                      </div>
+                      <select
+                        className="calendar-year"
+                        aria-label="Select year"
+                        value={toMonth.getFullYear()}
+                        onChange={e => {
+                          const year = Number(e.target.value);
+                          setToMonth(new Date(year, toMonth.getMonth(), 1));
+                        }}
+                      >
+                        {yearOptions.map(year => (
+                          <option key={year} value={year}>{year}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="calendar-nav"
+                          aria-label="Next month"
+                          onClick={() => setToMonth(new Date(toMonth.getFullYear(), toMonth.getMonth() + 1, 1))}
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                      <div className="calendar-week">
+                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                          <span key={day}>{day}</span>
+                        ))}
+                      </div>
+                      <div className="calendar-grid">
+                        {getMonthMatrix(toMonth).cells.map((day, idx) => {
+                          if (!day) return <span key={`t-${idx}`} className="calendar-day is-empty" />;
+                          const date = new Date(toMonth.getFullYear(), toMonth.getMonth(), day);
+                          const iso = toIsoDate(date);
+                          const selected = iso === toDate;
+                          return (
+                            <button
+                              type="button"
+                              key={`t-${idx}`}
+                              className={`calendar-day${selected ? ' is-selected' : ''}`}
+                              onClick={() => {
+                                setToDate(iso);
+                                setToOpen(false);
+                              }}
+                            >
+                              {day}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginBottom: '1.25rem' }}>
-              <label htmlFor="sms-ref" style={{ fontFamily: 'Arial, sans-serif', fontSize: '0.66rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#333' }}>SMS Reference No (Optional)</label>
-              <input id="sms-ref" type="text" value={smsRefNo} onChange={e => setSmsRefNo(e.target.value)} placeholder="e.g. SMS/LOG/201"
-                style={{ minHeight: 48, border: '1px solid #c7d1e0', borderRadius: 4, background: '#fff', color: '#333', padding: '0 0.875rem', fontSize: '0.9rem' }} />
             </div>
             <button type="submit" id="kiosk-search-btn" style={{
               minHeight: 48, width: '100%', border: '1px solid #000080', borderRadius: 4,

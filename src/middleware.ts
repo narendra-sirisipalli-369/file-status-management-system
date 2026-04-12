@@ -20,6 +20,26 @@ function isPublic(pathname: string): boolean {
   return PUBLIC_ROUTES.some(p => pathname === p || pathname.startsWith(p + '/') || pathname.startsWith(p + '?'));
 }
 
+function isLoginPath(pathname: string): boolean {
+  return (
+    pathname === '/login' ||
+    pathname.startsWith('/login/') ||
+    pathname === '/kiosk/login' ||
+    pathname.startsWith('/kiosk/login/')
+  );
+}
+
+function redirectForRole(request: NextRequest, role: string, loginDepartment?: string | null) {
+  if (role === 'KIOSK_USER') {
+    const dept = (loginDepartment ?? 'Logistics').toString();
+    return NextResponse.redirect(new URL(`/kiosk/home?department=${encodeURIComponent(dept)}`, request.url));
+  }
+  if (MAILMAN_ROLES.includes(role)) {
+    return NextResponse.redirect(new URL('/admin/scan', request.url));
+  }
+  return NextResponse.redirect(new URL('/admin', request.url));
+}
+
 // Mailman roles — locked to /admin/scan only
 const MAILMAN_ROLES = ['MAILMAN_INTERNAL', 'MAILMAN_EXTERNAL', 'MAILMAN'];
 
@@ -31,6 +51,18 @@ const MAILMAN_ALLOWED = ['/admin/scan'];
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get('token')?.value;
+
+  // Prevent navigating back to login pages when already authenticated
+  if (isLoginPath(pathname) && token) {
+    try {
+      const { payload } = await jwtVerify(token, SECRET_KEY);
+      const role = payload.role as string;
+      const loginDepartment = (payload.loginDepartment as string | null) ?? null;
+      return redirectForRole(request, role, loginDepartment);
+    } catch {
+      // ignore invalid/expired token and allow login page to render
+    }
+  }
 
   // Fully public routes
   if (isPublic(pathname)) {
@@ -45,10 +77,11 @@ export async function middleware(request: NextRequest) {
   try {
     const { payload } = await jwtVerify(token, SECRET_KEY);
     const role = payload.role as string;
+    const loginDepartment = (payload.loginDepartment as string | null) ?? null;
 
     // KIOSK_USER: may not access /admin routes
     if (role === 'KIOSK_USER' && pathname.startsWith('/admin')) {
-      return NextResponse.redirect(new URL('/kiosk', request.url));
+      return redirectForRole(request, role, loginDepartment);
     }
 
     // MAILMAN: locked to /admin/scan only within the admin namespace
@@ -71,7 +104,7 @@ export async function middleware(request: NextRequest) {
     requestHeaders.set('x-user-id',          String(payload.userId));
     requestHeaders.set('x-user-role',         role);
     requestHeaders.set('x-username',          String(payload.username));
-    requestHeaders.set('x-login-department',  String(payload.loginDepartment ?? ''));
+    requestHeaders.set('x-login-department',  String(loginDepartment ?? ''));
 
     return NextResponse.next({ request: { headers: requestHeaders } });
   } catch {

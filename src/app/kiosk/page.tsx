@@ -48,7 +48,7 @@ export default function KioskSplashPage() {
 
       {/* Touch to begin button */}
       <button
-        onClick={() => router.push('/kiosk/home')}
+        onClick={() => router.push('/kiosk/login')}
         style={{
           minHeight: 80,
           padding: '0 3rem',
