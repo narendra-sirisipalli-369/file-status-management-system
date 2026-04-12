@@ -43,7 +43,7 @@ export async function GET(request: Request) {
     if (fromDate || toDate) {
       where.dateSubmission = {};
       if (fromDate) (where.dateSubmission as Record<string, Date>).gte = new Date(fromDate);
-      if (toDate)   (where.dateSubmission as Record<string, Date>).lte = new Date(toDate + 'T23:59:59');
+      if (toDate)   (where.dateSubmission as Record<string, Date>).lte = new Date(toDate + 'T23:59:59Z');
     }
     if (dept) where.department = dept;
 
