@@ -46,6 +46,11 @@ export async function middleware(request: NextRequest) {
     const { payload } = await jwtVerify(token, SECRET_KEY);
     const role = payload.role as string;
 
+    // KIOSK_USER: may not access /admin routes
+    if (role === 'KIOSK_USER' && pathname.startsWith('/admin')) {
+      return NextResponse.redirect(new URL('/kiosk', request.url));
+    }
+
     // MAILMAN: locked to /admin/scan only within the admin namespace
     if (MAILMAN_ROLES.includes(role) && pathname.startsWith('/admin') && !MAILMAN_ALLOWED.some(p => pathname.startsWith(p))) {
       return NextResponse.redirect(new URL('/admin/scan', request.url));

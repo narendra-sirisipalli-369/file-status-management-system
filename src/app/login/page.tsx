@@ -15,14 +15,13 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Fetch usernames for dropdown on mount
+  // Fetch usernames for datalist on mount
   useEffect(() => {
     fetch('/api/users/list')
       .then(r => r.json())
       .then((data: UserEntry[]) => {
         if (Array.isArray(data) && data.length > 0) {
           setUsers(data);
-          setUsername(data[0].username);
         }
       })
       .catch(() => {});
@@ -108,30 +107,32 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className={styles.form}>
 
-          {/* Username Dropdown (per PDF spec: "Username is selected from the dropdown") */}
+          {/* Username Input with datalist suggestions (per PDF spec) */}
           <div className={styles.inputGroup}>
-            <label htmlFor="login-username">Username</label>
-            <select
-              id="login-username"
+            <label htmlFor="username">Username</label>
+            <input
+              id="username"
+              type="text"
+              list="users-datalist"
               className={styles.inputField}
               value={username}
               onChange={e => setUsername(e.target.value)}
+              placeholder="Enter username"
+              autoComplete="username"
               required
-            >
-              {users.length === 0 && <option value="">Loading...</option>}
+            />
+            <datalist id="users-datalist">
               {users.map(u => (
-                <option key={u.username} value={u.username}>
-                  {u.username} ({u.role})
-                </option>
+                <option key={u.username} value={u.username}>{u.username} ({u.role})</option>
               ))}
-            </select>
+            </datalist>
           </div>
 
           {/* Password */}
           <div className={styles.inputGroup}>
-            <label htmlFor="login-password">Password</label>
+            <label htmlFor="password">Password</label>
             <input
-              id="login-password"
+              id="password"
               type="password"
               className={styles.inputField}
               value={password}

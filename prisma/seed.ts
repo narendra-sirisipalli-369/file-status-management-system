@@ -12,6 +12,7 @@ async function main() {
 
   // ── DEFAULT USERS (all 9 roles per FSMS_Report.pdf) ─────────────────────────
   const users = [
+    { username: 'admin',        password: await hash('admin123'),    role: 'B_LOGO',           department: 'Logistics' },
     { username: 'b_logo',       password: await hash('blogo123'),    role: 'B_LOGO',           department: 'Logistics' },
     { username: 'd_logo',       password: await hash('dlogo123'),    role: 'D_LOGO',           department: 'Logistics' },
     { username: 'mcpo',         password: await hash('mcpo123'),     role: 'MCPO',             department: 'Logistics' },
@@ -22,6 +23,7 @@ async function main() {
     { username: 'ifa_user',     password: await hash('ifa123'),      role: 'IFA',              department: 'Logistics' },
     { username: 'co_sir',       password: await hash('cosir123'),    role: 'CO_SIR',           department: 'Logistics' },
     // Shared department kiosk logins (End User per PDF spec)
+    { username: 'kiosk',        password: await hash('kiosk123'),    role: 'KIOSK_USER',       department: 'Logistics' },
     { username: 'logistics',    password: await hash('logistics123'),role: 'KIOSK_USER',       department: 'Logistics' },
     { username: 'inas321',      password: await hash('inas321'),     role: 'KIOSK_USER',       department: 'INAS 321' },
     { username: 'inas324',      password: await hash('inas324'),     role: 'KIOSK_USER',       department: 'INAS 324' },

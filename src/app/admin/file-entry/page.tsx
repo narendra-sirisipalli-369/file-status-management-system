@@ -110,7 +110,7 @@ export default function FileEntryPage() {
                     className="input-field"
                     value={form.description}
                     onChange={handleChange}
-                    placeholder="Description of Requirement"
+                    placeholder="Supply or service requirement description"
                     required
                     autoFocus
                   />
@@ -187,8 +187,8 @@ export default function FileEntryPage() {
                 <div className="input-group" style={{ gridColumn: '1 / -1' }}>
                   <label htmlFor="entry-mobile">
                     Registered Mobile Number
-                    <span style={{ color: 'var(--danger)', fontSize: '0.62rem', marginLeft: 4 }}>
-                      * Required for kiosk self-service tracking
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.62rem', marginLeft: 4 }}>
+                      (Optional)
                     </span>
                   </label>
                   <div style={{ position: 'relative' }}>
@@ -208,13 +208,11 @@ export default function FileEntryPage() {
                       onChange={e => setForm(prev => ({ ...prev, mobileNumber: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
                       placeholder="9876543210"
                       maxLength={10}
-                      required
-                      pattern="[6-9][0-9]{9}"
                       style={{ paddingLeft: '3rem', fontFamily: 'var(--font-mono)', letterSpacing: '0.08em' }}
                     />
                   </div>
                   <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>
-                    Applicant mobile number — used for kiosk triple-factor verification
+                    Applicant mobile number — used for kiosk self-service tracking
                   </span>
                 </div>
               </div>

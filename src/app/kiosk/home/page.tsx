@@ -25,16 +25,14 @@ function KioskHomePageInner() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fromDate || !toDate) {
-      setError('From Date and To Date are required.');
-      return;
-    }
-    if (fromDate > toDate) {
+    if (fromDate && toDate && fromDate > toDate) {
       setError('From Date cannot be later than To Date.');
       return;
     }
     setError('');
-    const params = new URLSearchParams({ department, from: fromDate, to: toDate });
+    const params = new URLSearchParams({ department });
+    if (fromDate) params.set('from', fromDate);
+    if (toDate) params.set('to', toDate);
     if (smsRefNo.trim()) params.set('smsRefNo', smsRefNo.trim());
     router.push(`/kiosk/files?${params.toString()}`);
   };
@@ -115,15 +113,15 @@ function KioskHomePageInner() {
           )}
 
           <form onSubmit={handleSubmit}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                 <label htmlFor="from-date" style={{ fontFamily: 'Arial, sans-serif', fontSize: '0.66rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#333' }}>From Date</label>
-                <input id="from-date" type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} required
+                <input id="from-date" type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
                   style={{ minHeight: 48, border: '1px solid #c7d1e0', borderRadius: 4, background: '#fff', color: '#333', padding: '0 0.875rem', fontSize: '0.9rem', cursor: 'pointer' }} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                 <label htmlFor="to-date" style={{ fontFamily: 'Arial, sans-serif', fontSize: '0.66rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#333' }}>To Date</label>
-                <input id="to-date" type="date" value={toDate} onChange={e => setToDate(e.target.value)} required
+                <input id="to-date" type="date" value={toDate} onChange={e => setToDate(e.target.value)}
                   style={{ minHeight: 48, border: '1px solid #c7d1e0', borderRadius: 4, background: '#fff', color: '#333', padding: '0 0.875rem', fontSize: '0.9rem', cursor: 'pointer' }} />
               </div>
             </div>
@@ -132,7 +130,7 @@ function KioskHomePageInner() {
               <input id="sms-ref" type="text" value={smsRefNo} onChange={e => setSmsRefNo(e.target.value)} placeholder="e.g. SMS/LOG/201"
                 style={{ minHeight: 48, border: '1px solid #c7d1e0', borderRadius: 4, background: '#fff', color: '#333', padding: '0 0.875rem', fontSize: '0.9rem' }} />
             </div>
-            <button type="submit" style={{
+            <button type="submit" id="kiosk-search-btn" style={{
               minHeight: 48, width: '100%', border: '1px solid #000080', borderRadius: 4,
               background: '#000080', color: '#fff', fontFamily: 'Arial, sans-serif',
               fontSize: '0.74rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer',
