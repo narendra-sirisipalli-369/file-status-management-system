@@ -1,0 +1,6 @@
+node_modules
+.next
+prisma/*.db
+prisma/*.db-journal
+.env
+src.zip

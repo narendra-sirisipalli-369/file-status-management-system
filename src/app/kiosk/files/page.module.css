@@ -1,0 +1,110 @@
+.wrapper {
+  min-height: calc(100vh - 64px);
+  background: var(--page-bg);
+  padding: 1.25rem;
+}
+
+.header {
+  margin-bottom: 1rem;
+}
+
+.title {
+  font-family: Arial, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--nav-bg);
+}
+
+.subTitle {
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+  color: var(--text-main);
+}
+
+.tableContainer {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--accent-border);
+  border-radius: 6px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #ffffff;
+}
+
+.table th {
+  background: var(--nav-bg);
+  color: #ffffff;
+  text-align: left;
+  min-height: 48px;
+  height: 48px;
+  padding: 0 0.8rem;
+  font-family: Arial, sans-serif;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.table td {
+  min-height: 48px;
+  height: 52px;
+  padding: 0 0.8rem;
+  border-bottom: 1px solid var(--accent-border);
+  font-size: 0.82rem;
+  color: var(--text-main);
+}
+
+.table tbody tr:hover {
+  background: #f7f9fc;
+}
+
+.fileName {
+  font-weight: 600;
+}
+
+.ctaButton {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--nav-bg);
+  border-radius: 4px;
+  padding: 0 0.9rem;
+  background: var(--nav-bg);
+  color: #ffffff;
+  font-family: Arial, sans-serif;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ctaButton:hover {
+  background: #000066;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 1.2rem;
+  color: #5d6977;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 960px) {
+  .wrapper {
+    padding: 1rem 0.75rem;
+  }
+
+  .table td,
+  .table th {
+    padding: 0 0.6rem;
+  }
+}

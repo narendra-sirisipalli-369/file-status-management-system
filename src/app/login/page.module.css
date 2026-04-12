@@ -1,0 +1,166 @@
+.wrapper {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--page-bg);
+  padding: 2rem 1rem;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.logos {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+}
+
+.logoImage {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+}
+
+.orgTitle {
+  font-family: Arial, sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nav-bg);
+}
+
+.orgSub {
+  font-size: 0.7rem;
+  color: var(--text-main);
+  letter-spacing: 0.06em;
+}
+
+.card {
+  width: 100%;
+  max-width: 460px;
+  background: #ffffff;
+  border: 1px solid var(--accent-border);
+  border-top: 4px solid var(--nav-bg);
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.cardTitle {
+  font-family: Arial, sans-serif;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--nav-bg);
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--accent-border);
+}
+
+.errorAlert {
+  margin-bottom: 0.75rem;
+  border: 1px solid #f5b7b7;
+  background: #fff4f4;
+  color: #8f1d1d;
+  border-radius: 4px;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.78rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.inputGroup label {
+  font-family: Arial, sans-serif;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-main);
+}
+
+.inputField {
+  min-height: 48px;
+  width: 100%;
+  border: 1px solid #c7d1e0;
+  border-radius: 4px;
+  background: #ffffff;
+  color: var(--text-main);
+  padding: 0 0.875rem;
+  font-size: 0.9rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.inputField:focus {
+  border-color: var(--nav-bg);
+  box-shadow: 0 0 0 2px rgba(0, 0, 128, 0.12);
+}
+
+.submitBtn {
+  margin-top: 0.4rem;
+  min-height: 48px;
+  width: 100%;
+  border: 1px solid var(--nav-bg);
+  border-radius: 4px;
+  background: var(--nav-bg);
+  color: #ffffff;
+  font-family: Arial, sans-serif;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.submitBtn:hover {
+  background: #000066;
+}
+
+.submitBtn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.footerNotice {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--accent-border);
+  text-align: center;
+  font-family: Arial, sans-serif;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #616161;
+}
+
+@media (max-width: 768px) {
+  .logos {
+    gap: 0.8rem;
+  }
+
+  .logoImage {
+    width: 56px;
+    height: 56px;
+  }
+
+  .orgTitle {
+    font-size: 0.88rem;
+  }
+}

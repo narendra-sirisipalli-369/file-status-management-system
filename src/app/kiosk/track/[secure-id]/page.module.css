@@ -1,0 +1,119 @@
+.wrapper {
+  min-height: 100vh;
+  background: var(--page-bg);
+  padding: 1.25rem;
+}
+
+.main {
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+.trackingStrip {
+  min-height: 48px;
+  border: 1px solid var(--nav-bg);
+  border-radius: 4px;
+  background: var(--nav-bg);
+  color: #ffffff;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  padding: 0.4rem 0.8rem;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.tableCard {
+  border: 1px solid var(--accent-border);
+  border-top: 3px solid var(--nav-bg);
+  border-radius: 6px;
+  background: #ffffff;
+  margin-bottom: 1rem;
+}
+
+.tableHeading {
+  min-height: 48px;
+  background: var(--nav-bg);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  padding: 0 0.8rem;
+  font-family: Arial, sans-serif;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  min-height: 48px;
+  height: 48px;
+  background: #f3f6fb;
+  color: #2f3a47;
+  text-align: left;
+  padding: 0 0.8rem;
+  font-family: Arial, sans-serif;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--accent-border);
+  white-space: nowrap;
+}
+
+.table td {
+  min-height: 48px;
+  height: 52px;
+  padding: 0 0.8rem;
+  border-bottom: 1px solid var(--accent-border);
+  font-size: 0.82rem;
+  color: var(--text-main);
+}
+
+.table tbody tr:hover {
+  background: #f8faff;
+}
+
+.emptyState {
+  text-align: center;
+  color: #5f6b79;
+  padding: 1rem;
+}
+
+.footerNote {
+  margin-top: 1rem;
+  border-top: 1px solid var(--accent-border);
+  padding-top: 0.75rem;
+  text-align: center;
+  font-family: Arial, sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #5e6977;
+}
+
+@media (max-width: 900px) {
+  .wrapper {
+    padding: 1rem 0.75rem;
+  }
+
+  .trackingStrip {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+  }
+}
