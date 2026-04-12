@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Selenium Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Node.js setup ───────────────────────────────────────────────────────
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # ── Python setup ────────────────────────────────────────────────────────
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # ── Chrome + ChromeDriver ───────────────────────────────────────────────
+      - name: Install Chrome and ChromeDriver
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: Symlink chromedriver to /usr/bin/chromedriver
+        run: |
+          DRIVER=$(which chromedriver)
+          if [ "$DRIVER" != "/usr/bin/chromedriver" ]; then
+            sudo ln -sf "$DRIVER" /usr/bin/chromedriver
+          fi
+
+      # ── Node dependencies ───────────────────────────────────────────────────
+      - name: Install Node dependencies
+        run: npm ci
+
+      # ── Prisma client + database ────────────────────────────────────────────
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Seed database
+        run: npm run seed
+
+      # ── Build Next.js application ────────────────────────────────────────────
+      - name: Build Next.js application
+        run: npm run build
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-secret-key-for-testing' }}
+
+      # ── Start application in background ─────────────────────────────────────
+      - name: Start Next.js application
+        run: npm start &
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-secret-key-for-testing' }}
+          PORT: 3000
+
+      - name: Wait for application to be ready
+        run: |
+          echo "Waiting for server on http://localhost:3000 ..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/login > /dev/null 2>&1; then
+              echo "Server is up (attempt $i)"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "Server did not start within 90 seconds"
+          exit 1
+
+      # ── Python Selenium dependencies ─────────────────────────────────────────
+      - name: Install Python Selenium dependencies
+        run: pip install selenium requests
+
+      # ── Run test suite ───────────────────────────────────────────────────────
+      - name: Run Selenium test suite (headless)
+        run: python tests/test_full_system.py --headless

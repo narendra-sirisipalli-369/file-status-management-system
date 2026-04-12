@@ -164,6 +164,45 @@ export default function ReportsPage() {
               {loading ? 'Processing...' : 'Generate Report'}
             </button>
           </form>
+
+          {/* ── CSV Export ── */}
+          <div style={{ marginTop: 'var(--space-md)', paddingTop: 'var(--space-md)', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: 'var(--letter-spacing-tech)' }}>
+              Audit Export
+            </span>
+            <a
+              id="csv-export-btn"
+              href={`/api/files/export?${new URLSearchParams(
+                Object.fromEntries(
+                  Object.entries({ from: fromDate, to: toDate, dept }).filter(([, v]) => v !== '')
+                )
+              )}`}
+              download
+              style={{
+                display:         'inline-flex',
+                alignItems:      'center',
+                gap:             '0.5rem',
+                minHeight:       '48px',
+                padding:         '0 1.5rem',
+                backgroundColor: '#000080',
+                color:           '#FFFFFF',
+                border:          'none',
+                borderRadius:    '4px',
+                fontSize:        '0.72rem',
+                fontWeight:      700,
+                letterSpacing:   '0.08em',
+                textTransform:   'uppercase',
+                textDecoration:  'none',
+                cursor:          'pointer',
+                fontFamily:      'inherit',
+              }}
+            >
+              ↓ Download Audit Log (CSV)
+            </a>
+            <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>
+              Exports all files &amp; complete status history — formatted for physical printing
+            </span>
+          </div>
         </div>
 
         {/* ── SUMMARY METRICS ── */}
