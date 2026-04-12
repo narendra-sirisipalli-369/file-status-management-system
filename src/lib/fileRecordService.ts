@@ -9,7 +9,7 @@ export const fileEntrySchema = z.object({
   department: z.string().min(1),
   typeProcessing: z.string().min(1),
   dateSubmission: z.string().optional(),
-  mobileNumber: z.string().regex(/^[6-9]\d{9}$/, 'Valid 10-digit Indian mobile required'),
+  mobileNumber: z.string().optional().default(''),
   smsRefNoOverride: z.string().optional(),
 });
 

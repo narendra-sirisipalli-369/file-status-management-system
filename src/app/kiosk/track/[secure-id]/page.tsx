@@ -41,8 +41,8 @@ export default async function KioskTrackPage({ params }: Params) {
     <div className={styles.wrapper}>
       <main className={styles.main}>
         <div className={styles.trackingStrip}>
+          <span>INS DEGA — File Status Management System</span>
           <span>Tracking ID: {file.secureTrackingId}</span>
-          <span>Read-Only Kiosk View</span>
         </div>
 
         <section className={styles.tableCard}>

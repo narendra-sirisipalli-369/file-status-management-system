@@ -5,7 +5,7 @@ import Link from 'next/link';
 
 // Use same access rules as we determined
 const NAV_ITEMS_BLOGO = [
-  { href: '/admin/dashboard',   label: 'Overview'      },
+  { href: '/admin/dashboard',   label: 'Dashboard'     },
   { href: '/admin/file-entry',  label: 'File Entry'    },
   { href: '/admin/files',       label: 'File Search'   },
   { href: '/admin/reports',     label: 'Reports'       },
@@ -14,7 +14,7 @@ const NAV_ITEMS_BLOGO = [
 ];
 
 const NAV_ITEMS_DLOGO = [
-  { href: '/admin/dashboard',   label: 'Overview'      },
+  { href: '/admin/dashboard',   label: 'Dashboard'     },
   { href: '/admin/file-entry',  label: 'File Entry'    },
   { href: '/admin/files',       label: 'File Search'   },
   { href: '/admin/reports',     label: 'Reports'       },
@@ -24,7 +24,7 @@ const NAV_ITEMS_DLOGO = [
 const NAV_ITEMS_MCPO = NAV_ITEMS_DLOGO;
 
 const NAV_ITEMS_INWARD = [
-  { href: '/admin/dashboard',   label: 'Overview'      },
+  { href: '/admin/dashboard',   label: 'Dashboard'     },
   { href: '/admin/file-entry',  label: 'File Entry'    },
   { href: '/admin/files',       label: 'File Search'   },
   { href: '/admin/reports',     label: 'Reports'       },
@@ -32,20 +32,20 @@ const NAV_ITEMS_INWARD = [
 ];
 
 const NAV_ITEMS_STORE_OFFICE = [
-  { href: '/admin/dashboard',   label: 'Overview'      },
+  { href: '/admin/dashboard',   label: 'Dashboard'     },
   { href: '/admin/file-entry',  label: 'File Entry'    },
   { href: '/admin/files',       label: 'File Search'   },
   { href: '/admin/reports',     label: 'Reports'       },
 ];
 
 const NAV_ITEMS_IFA = [
-  { href: '/admin/dashboard',   label: 'Overview'      },
+  { href: '/admin/dashboard',   label: 'Dashboard'     },
   { href: '/admin/files',       label: 'File Search'   },
   { href: '/admin/reports',     label: 'Reports'       },
 ];
 
 const NAV_ITEMS_CO_SIR = [
-  { href: '/admin/dashboard',   label: 'Overview'      },
+  { href: '/admin/dashboard',   label: 'Dashboard'     },
   { href: '/admin/files',       label: 'File Search'   },
 ];
 

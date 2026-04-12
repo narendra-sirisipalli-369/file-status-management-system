@@ -124,7 +124,7 @@ function KioskFilesPageInner() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#000080' }}>
-                {['Sl. No', 'Description of Requirement', 'Date of Submission', 'SMS Reference No'].map(h => (
+                {['Sl. No', 'Description of Requirement', 'Date of Submission', 'SMS Reference No', 'Action'].map(h => (
                   <th key={h} style={{
                     padding: '0.75rem 1rem', textAlign: 'left',
                     fontFamily: 'Arial, sans-serif', fontSize: '0.66rem',
@@ -156,6 +156,19 @@ function KioskFilesPageInner() {
                   <td style={{ padding: '0.85rem 1rem', fontWeight: 600, color: '#333' }}>{f.description}</td>
                   <td style={{ padding: '0.85rem 1rem', fontFamily: "'Courier New', monospace", fontSize: '0.82rem', color: '#555' }}>{fmtDate(f.dateSubmission)}</td>
                   <td style={{ padding: '0.85rem 1rem', fontFamily: "'Courier New', monospace", fontSize: '0.82rem', color: '#000080', fontWeight: 700 }}>{f.smsRefNo}</td>
+                  <td style={{ padding: '0.85rem 1rem' }}>
+                    <button
+                      onClick={e => { e.stopPropagation(); router.push(`/kiosk/file/${f.fileId}?department=${encodeURIComponent(department)}`); }}
+                      style={{
+                        minHeight: 36, border: '1px solid #000080', borderRadius: 4,
+                        background: '#000080', color: '#fff', padding: '0 0.75rem',
+                        fontFamily: 'Arial, sans-serif', fontSize: '0.65rem',
+                        fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer',
+                      }}
+                    >
+                      View
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
