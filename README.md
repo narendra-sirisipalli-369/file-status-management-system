@@ -96,3 +96,29 @@ Seeded credentials are defined in `prisma/seed.ts` (e.g. `admin` / `admin123`, `
 
 **Designed for High-Integrity Environments.**
 *Eastern Naval Command | Indian Navy*
+
+
+For MAC installation and Running:
+# 1) Install Homebrew (if not installed)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# 2) Install Node.js LTS (includes npm)
+brew install node@20
+echo 'export PATH="/opt/homebrew/opt/node@20/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+
+# 3) Verify
+node -v
+npm -v
+
+# 4) In this project folder, install dependencies (includes Prisma CLI via devDependencies)
+cd /path/to/your/file-management/project
+npm install
+
+# 5) Prisma setup for this codebase
+npx prisma generate
+npx prisma db push
+npm run seed
+
+# 6) Start app
+npm run dev
