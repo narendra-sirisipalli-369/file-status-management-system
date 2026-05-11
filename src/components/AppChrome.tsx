@@ -28,7 +28,7 @@ export default function AppChrome({ children }: { children: React.ReactNode }) {
     <div className="page-wrapper">
       <TopNav
         showCenterTitle={shouldShowHomeTitle(pathname) || isLogin}
-        centerTitle={isLogin ? 'Eastern Naval Command - File Status Management System' : undefined}
+        centerTitle={isLogin ? 'Eastern Naval Command\nFile Status Management System' : undefined}
         showClock={!isLogin}
         showSessionMenu={!isLogin}
         variant={isLogin ? 'login' : 'default'}

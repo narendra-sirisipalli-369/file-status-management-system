@@ -72,7 +72,6 @@ export default function KioskLoginPage() {
           <div className={styles.logos}>
             <div>
               <div className={styles.orgTitle}>INS DEGA</div>
-              <div className={styles.orgSub}>Eastern Naval Command - Indian Navy</div>
             </div>
           </div>
           <div className={styles.orgSub} style={{ marginTop: '0.5rem' }}>

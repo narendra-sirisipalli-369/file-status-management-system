@@ -230,6 +230,7 @@ select:disabled {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-white);
+  white-space: pre-line;
 }
 
 .topnav-right {

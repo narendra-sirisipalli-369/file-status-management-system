@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import QRCode from 'react-qr-code';
 import { STAGES, formatINR, formatDate, formatDateTime } from '@/lib/qrService';
@@ -50,6 +50,7 @@ export default function FileDetailPage() {
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState('');
   const [userRole,  setUserRole]  = useState('');
+  const qrWrapperRef             = useRef<HTMLDivElement | null>(null);
 
   // Update form state
   const [stageName,     setStageName]     = useState('');
@@ -57,6 +58,60 @@ export default function FileDetailPage() {
   const [remarks,       setRemarks]       = useState('');
   const [updating,      setUpdating]      = useState(false);
   const [updateMsg,     setUpdateMsg]     = useState('');
+
+  const downloadQrPng = async (smsRefNo: string) => {
+    const svg = qrWrapperRef.current?.querySelector('svg');
+    if (!svg) return;
+
+    // NOTE: browsers/OSes don't allow "/" in filenames; map to "_" for download.
+    const safeBaseName = (smsRefNo || 'QR_CODE')
+      .trim()
+      .replace(/[\/\\?%*:|"<>]/g, '_');
+    const filename = `${safeBaseName}.png`;
+
+    const serializer = new XMLSerializer();
+    const svgString = serializer.serializeToString(svg);
+    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const svgUrl = URL.createObjectURL(svgBlob);
+
+    try {
+      const size = 160;
+      const scale = 6;
+      const canvas = document.createElement('canvas');
+      canvas.width = size * scale;
+      canvas.height = size * scale;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('Failed to render QR image'));
+        img.src = svgUrl;
+      });
+
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      const blob: Blob | null = await new Promise(resolve => {
+        canvas.toBlob(b => resolve(b), 'image/png');
+      });
+      if (!blob) return;
+
+      const pngUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = pngUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(pngUrl);
+    } finally {
+      URL.revokeObjectURL(svgUrl);
+    }
+  };
 
   const backHref = (() => {
     const from = searchParams.get('from');
@@ -300,7 +355,7 @@ export default function FileDetailPage() {
             {/* QR Code */}
             <div className="card" style={{ textAlign: 'center' }}>
               <div className="card-header" style={{ textAlign: 'left' }}>QR Code</div>
-              <div className="qr-wrapper" style={{ display: 'inline-block', margin: '0 auto var(--space-md)' }}>
+              <div ref={qrWrapperRef} className="qr-wrapper" style={{ display: 'inline-block', margin: '0 auto var(--space-md)' }}>
                 <QRCode
                   value={file.secureTrackingId ? buildKioskTrackUrl(file.secureTrackingId) : file.fileId}
                   size={160}
@@ -308,6 +363,14 @@ export default function FileDetailPage() {
                 />
               </div>
               <div className="qr-ref" style={{ fontSize: '0.75rem' }}>{file.smsRefNo}</div>
+              <button
+                type="button"
+                className="btn btn-ghost w-full"
+                style={{ marginTop: 'var(--space-sm)' }}
+                onClick={() => downloadQrPng(file.smsRefNo)}
+              >
+                Download
+              </button>
               {file.secureTrackingId && (
                 <div style={{ fontSize: '0.58rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 4, wordBreak: 'break-all' }}>
                   {file.secureTrackingId}

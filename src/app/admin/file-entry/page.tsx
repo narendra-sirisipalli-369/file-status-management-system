@@ -6,9 +6,9 @@ import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { STAGES, formatINR } from '@/lib/qrService';
 import { buildKioskTrackUrl } from '@/lib/trackingId';
 
-const PROCESSING_TYPES = ['GEM', 'Manual', 'PAC', 'DGSND', 'RFP'];
+const PROCESSING_TYPES = ['GFR', 'GEM'];
 const DEPARTMENTS = ['Logistics', 'INAS 321', 'INAS 324', 'INAS 551', 'RO', 'INAS 333', 'ALD', 'BLO'];
-const FILE_TYPES  = ['Flash', 'Head', 'GEM/800(E)', 'Manual Tender', 'PAC', 'RFP'];
+const FILE_TYPES  = ['800(A)', '800(R)', '110(R)'];
 
 export default function FileEntryPage() {
   const dateRowRef = useRef<HTMLDivElement | null>(null);

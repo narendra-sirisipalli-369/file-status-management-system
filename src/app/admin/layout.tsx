@@ -34,7 +34,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       {/* Global Top Navigation */}
       <TopNav
         showCenterTitle={true}
-        department={user?.loginDepartment ?? null}
       />
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>

@@ -5,7 +5,6 @@ import { Power } from 'lucide-react';
 interface TopNavProps {
   showCenterTitle?: boolean;
   centerTitle?: string;
-  department?: string | null;
   showClock?: boolean;
   showSessionMenu?: boolean;
   variant?: 'default' | 'login';
@@ -14,42 +13,22 @@ interface TopNavProps {
 export default function TopNav({
   showCenterTitle = false,
   centerTitle = 'FILE STATUS INFORMATION SYSTEM - INS DEGA',
-  department,
   showClock = true,
   showSessionMenu = true,
   variant = 'default',
 }: TopNavProps) {
   return (
     <nav className={`topnav${variant === 'login' ? ' topnav--login' : ''}`} role="navigation" aria-label="Global Navigation">
-      {/* LEFT — INS DEGA logo + org name */}
+      {/* LEFT — INS DEGA logo */}
       <div className="topnav-left">
         <Image
-          src="/logo/ins-dega.png"
-          alt="INS Dega Crest"
+          src="/logo/ins-dega-transparent.png"
+          alt="INS Dega Emblem"
           width={64}
           height={64}
           className="topnav-logo"
           priority
         />
-        <div>
-          <div className="topnav-org-name">
-            INS DEGA
-            <span className="topnav-org-sub" style={{ fontSize: '0.65rem' }}>Logistics Department</span>
-          </div>
-          {department && (
-            <div style={{
-              fontFamily: 'Arial, Helvetica, sans-serif',
-              fontSize: '0.6rem',
-              fontWeight: 700,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              color: 'rgba(255,255,255,0.65)',
-              marginTop: 2,
-            }}>
-              {department}
-            </div>
-          )}
-        </div>
       </div>
 
       {/* CENTER — Screen title (shown only on Home page) */}
@@ -64,14 +43,6 @@ export default function TopNav({
       {/* RIGHT — ENC logo + clock + session menu */}
       <div className="topnav-right">
         {showClock && <ISTClock />}
-        <Image
-          src="/logo/eastern-command.png"
-          alt="Eastern Naval Command Badge"
-          width={64}
-          height={64}
-          className="topnav-logo"
-          priority
-        />
         {showSessionMenu && (
           <details className="topnav-menu">
             <summary className="topnav-menu-button" aria-label="Session menu">
@@ -84,6 +55,14 @@ export default function TopNav({
             </div>
           </details>
         )}
+        <Image
+          src="/logo/eastern-command.png"
+          alt="Eastern Naval Command Badge"
+          width={64}
+          height={64}
+          className="topnav-logo"
+          priority
+        />
       </div>
     </nav>
   );
