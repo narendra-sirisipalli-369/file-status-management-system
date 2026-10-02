@@ -1,5 +1,5 @@
 .wrapper {
-  min-height: calc(100vh - 64px);
+  min-height: calc(100vh - var(--topnav-h));
   background: var(--page-bg);
   padding: 1.25rem;
 }
@@ -15,7 +15,7 @@
 .departmentBlock,
 .clockBlock {
   border: 1px solid var(--accent-border);
-  border-radius: 6px;
+  border-radius: 0;
   background: #ffffff;
   padding: 0.9rem 1rem;
 }
@@ -66,7 +66,7 @@
   margin: 0 auto;
   border: 1px solid var(--accent-border);
   border-top: 4px solid var(--nav-bg);
-  border-radius: 8px;
+  border-radius: 0;
   background: #ffffff;
   padding: 1.5rem;
 }
@@ -92,7 +92,7 @@
   border: 1px solid #f5b7b7;
   background: #fff4f4;
   color: #8f1d1d;
-  border-radius: 4px;
+  border-radius: 0;
   padding: 0.6rem 0.75rem;
   font-size: 0.78rem;
 }
@@ -122,7 +122,7 @@
 .inputField {
   min-height: 48px;
   border: 1px solid #c7d1e0;
-  border-radius: 4px;
+  border-radius: 0;
   background: #ffffff;
   color: var(--text-main);
   padding: 0 0.875rem;
@@ -139,7 +139,7 @@
 .submitBtn {
   min-height: 48px;
   border: 1px solid var(--nav-bg);
-  border-radius: 4px;
+  border-radius: 0;
   background: var(--nav-bg);
   color: #ffffff;
   font-family: Arial, sans-serif;

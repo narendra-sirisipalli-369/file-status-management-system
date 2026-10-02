@@ -19,7 +19,7 @@ export function useISTClock(): ISTClockState {
           hour: '2-digit',
           minute: '2-digit',
           second: '2-digit',
-          hour12: true,
+          hour12: false,
           timeZone: 'Asia/Kolkata',
         }),
         date: now.toLocaleDateString('en-IN', {

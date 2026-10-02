@@ -1,65 +1,53 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { z } from 'zod';
-import { hasAnyRole, ROLES } from '@/lib/rbac';
+import { NextResponse } from 'next/server'
+import { logger } from '@/lib/logger'
+import { denyAccess } from '@/lib/apiAuth'
+import { z } from 'zod'
+import { isAdmin } from '@/lib/rbac'
+import { advanceFileStage, sendStageRemarks, StageActionError } from '@/lib/fileRecordService'
 
-const updateSchema = z.object({
-  stageName:    z.string().min(1),
-  inspectionBy: z.string().min(1),
-  remarks:      z.string().min(1),
-});
+const stageActionSchema = z.object({
+  /** EXIT (default) advances to the next stage. SEND sends the remarks as a message but holds the file in its current stage. SKIP advances without remarks and without sending a message. */
+  action: z.enum(['EXIT', 'SEND', 'SKIP']).default('EXIT'),
+  remarks: z.string().min(1).nullable().optional(),
+  remarksById: z.string().uuid().nullable().optional(),
+})
 
-export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+/**
+ * POST /api/files/[id]/status
+ * Single unified stage-action endpoint. ADMIN only.
+ */
+export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
-    const role = request.headers.get('x-user-role') ?? '';
-    const user = request.headers.get('x-username')  ?? 'Unknown';
-    const userId = request.headers.get('x-user-id') ?? undefined;
+    const role = request.headers.get('x-user-role') ?? ''
+    const userId = request.headers.get('x-user-id') ?? ''
 
-    // MAILMAN has no access to this endpoint
-    if (!hasAnyRole(role, [ROLES.B_LOGO, ROLES.D_LOGO, ROLES.INWARD])) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    if (!isAdmin(role)) {
+      return denyAccess(request, role)
     }
 
-    const body   = await request.json();
-    const parsed = updateSchema.safeParse(body);
+    const body = await request.json()
+    const parsed = stageActionSchema.safeParse(body)
     if (!parsed.success) {
-      return NextResponse.json({ error: 'Validation failed', details: parsed.error.errors }, { status: 400 });
+      return NextResponse.json({ error: 'Validation failed', details: parsed.error.errors }, { status: 400 })
     }
 
-    const { stageName, inspectionBy, remarks } = parsed.data;
-
-    // Fetch current file
-    const file = await prisma.fileRecord.findUnique({ where: { id: params.id } });
-    if (!file) return NextResponse.json({ error: 'File not found' }, { status: 404 });
-
-    // D_LOGO: can only add remarks — stage is locked to current
-    if (role === 'D_LOGO' && stageName !== file.status) {
-      return NextResponse.json({ error: 'D Logo access: stage cannot be altered. Use remarks only.' }, { status: 403 });
+    if (parsed.data.action === 'SEND') {
+      const remarks = parsed.data.remarks?.trim()
+      if (!remarks) {
+        return NextResponse.json({ error: 'Remarks are required to send a message.' }, { status: 400 })
+      }
+      await sendStageRemarks(params.id, userId, remarks, parsed.data.remarksById ?? null)
+    } else if (parsed.data.action === 'SKIP') {
+      await advanceFileStage(params.id, userId, null, null, { skip: true })
+    } else {
+      await advanceFileStage(params.id, userId, parsed.data.remarks ?? null, parsed.data.remarksById ?? null)
     }
-
-    // Update file status and create history entry in a transaction
-    await prisma.$transaction([
-      prisma.fileRecord.update({
-        where: { id: params.id },
-        data:  { status: stageName },
-      }),
-      prisma.statusHistory.create({
-        data: {
-          fileRecordId: params.id,
-          stageName,
-          inspectionBy: inspectionBy || user,
-          remarks,
-          actorUserId: userId,
-        },
-      }),
-    ]);
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('[File Status Update]', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    if (err instanceof StageActionError) {
+      return NextResponse.json({ error: err.message }, { status: 409 })
+    }
+    logger.error({ err }, '[File Stage Action]')
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

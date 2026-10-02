@@ -1,35 +1,32 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
 import styles from './page.module.css';
 
-const DEPARTMENTS = ['Logistics', 'INAS 321', 'INAS 324', 'INAS 551', 'RO', 'INAS 333', 'ALD', 'BLO'] as const;
+type Department = { id: string; name: string };
 
 export default function KioskLoginPage() {
   const router = useRouter();
 
-  const [department, setDepartment] = useState<string>('');
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [departmentId, setDepartmentId] = useState<string>('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const canEnterCreds = Boolean(department);
+  useEffect(() => {
+    fetch('/api/departments').then((r) => r.json()).then((d) => Array.isArray(d) && setDepartments(d));
+  }, []);
 
-  const departmentHint = useMemo(() => {
-    if (!department) return '';
-    // Optional helper mapping for the seeded kiosk usernames.
-    // Logistics -> logistics, INAS 321 -> inas321, etc.
-    const normalized = department.toLowerCase().replace(/\s+/g, '');
-    return normalized;
-  }, [department]);
+  const canEnterCreds = Boolean(departmentId);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!department) {
+    if (!departmentId) {
       setError('Please select a department first.');
       return;
     }
@@ -40,7 +37,7 @@ export default function KioskLoginPage() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, department, portal: 'kiosk' }),
+        body: JSON.stringify({ username, password, departmentId, portal: 'kiosk' }),
       });
       const data = await res.json().catch(() => ({}));
 
@@ -49,14 +46,12 @@ export default function KioskLoginPage() {
         return;
       }
 
-      const role = data.role ?? '';
-      if (role !== 'KIOSK_USER') {
+      if (data.role !== 'KIOSK') {
         setError('This portal is for Kiosk users only. Please use Staff Login.');
         return;
       }
 
-      const loginDepartment = data.loginDepartment ?? department;
-      router.replace(`/kiosk/home?department=${encodeURIComponent(loginDepartment)}`);
+      router.replace(data.redirectTo ?? `/kiosk/files?departmentId=${encodeURIComponent(departmentId)}`);
       router.refresh();
     } catch {
       setError('Network error. Please check your connection and retry.');
@@ -95,16 +90,13 @@ export default function KioskLoginPage() {
             <select
               id="kiosk-department"
               className={`${styles.inputField} ${styles.selectField}`}
-              value={department}
-              onChange={e => {
-                setDepartment(e.target.value);
-                setError('');
-              }}
+              value={departmentId}
+              onChange={(e) => { setDepartmentId(e.target.value); setError(''); }}
               required
             >
               <option value="" disabled>Select department</option>
-              {DEPARTMENTS.map(d => (
-                <option key={d} value={d}>{d}</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
               ))}
             </select>
           </div>
@@ -116,8 +108,8 @@ export default function KioskLoginPage() {
               type="text"
               className={styles.inputField}
               value={username}
-              onChange={e => setUsername(e.target.value)}
-              placeholder={departmentHint ? `e.g. ${departmentHint}` : 'Select department first'}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder={canEnterCreds ? 'Enter username' : 'Select department first'}
               autoComplete="off"
               autoCorrect="off"
               autoCapitalize="none"
@@ -135,7 +127,7 @@ export default function KioskLoginPage() {
                 type={showPassword ? 'text' : 'password'}
                 className={`${styles.inputField} ${styles.passwordField}`}
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={(e) => setPassword(e.target.value)}
                 placeholder={canEnterCreds ? 'Enter password' : 'Select department first'}
                 autoComplete="off"
                 required
@@ -146,8 +138,8 @@ export default function KioskLoginPage() {
                 className={styles.passwordToggle}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
                 aria-pressed={showPassword}
-                onMouseDown={e => e.preventDefault()}
-                onClick={() => setShowPassword(v => !v)}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setShowPassword((v) => !v)}
                 disabled={!canEnterCreds}
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -155,11 +147,7 @@ export default function KioskLoginPage() {
             </div>
           </div>
 
-          <button
-            type="submit"
-            className={styles.submitBtn}
-            disabled={loading || !canEnterCreds}
-          >
+          <button type="submit" className={styles.submitBtn} disabled={loading || !canEnterCreds}>
             {loading ? 'Authenticating...' : 'Sign In'}
           </button>
         </form>

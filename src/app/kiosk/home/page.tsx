@@ -16,7 +16,8 @@ import { Suspense } from 'react';
 function KioskHomePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const department = searchParams.get('department') ?? 'Logistics';
+  const departmentId = searchParams.get('departmentId') ?? '';
+  const department = searchParams.get('departmentName') ?? 'Department';
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [error, setError] = useState('');
@@ -114,7 +115,7 @@ function KioskHomePageInner() {
       return;
     }
     setError('');
-    const params = new URLSearchParams({ department });
+    const params = new URLSearchParams({ departmentId, departmentName: department });
     if (fromDate) params.set('from', fromDate);
     if (toDate) params.set('to', toDate);
     router.push(`/kiosk/files?${params.toString()}`);
@@ -127,10 +128,10 @@ function KioskHomePageInner() {
         <div style={{
           width: '100%', maxWidth: 760, margin: '0 auto',
           border: '1px solid #E2E8F0', borderTop: '4px solid #000080',
-          borderRadius: 8, background: '#fff', padding: '1.5rem',
+          borderRadius: 0, background: '#fff', padding: '1.5rem',
         }}>
           <div style={{
-            border: '1px solid #E2E8F0', borderRadius: 6, background: '#fff',
+            border: '1px solid #E2E8F0', borderRadius: 0, background: '#fff',
             padding: '0.65rem 0.85rem', display: 'inline-flex', flexDirection: 'column',
             alignItems: 'flex-start', gap: '0.2rem', marginBottom: '0.9rem',
           }}>
@@ -152,7 +153,7 @@ function KioskHomePageInner() {
           {error && (
             <div style={{
               marginBottom: '1rem', border: '1px solid #f5b7b7', background: '#fff4f4',
-              color: '#8f1d1d', borderRadius: 4, padding: '0.6rem 0.75rem', fontSize: '0.78rem',
+              color: '#8f1d1d', borderRadius: 0, padding: '0.6rem 0.75rem', fontSize: '0.78rem',
             }}>{error}</div>
           )}
 
@@ -175,7 +176,7 @@ function KioskHomePageInner() {
                         togglePicker('from');
                       }
                     }}
-                    style={{ minHeight: 48, border: '1px solid #c7d1e0', borderRadius: 4, background: '#fff', color: '#333', padding: '0 0.875rem', fontSize: '0.9rem', width: '100%' }}
+                    style={{ minHeight: 48, border: '1px solid #c7d1e0', borderRadius: 0, background: '#fff', color: '#333', padding: '0 0.875rem', fontSize: '0.9rem', width: '100%' }}
                   />
                   <button
                     type="button"
@@ -270,7 +271,7 @@ function KioskHomePageInner() {
                         togglePicker('to');
                       }
                     }}
-                    style={{ minHeight: 48, border: '1px solid #c7d1e0', borderRadius: 4, background: '#fff', color: '#333', padding: '0 0.875rem', fontSize: '0.9rem', width: '100%' }}
+                    style={{ minHeight: 48, border: '1px solid #c7d1e0', borderRadius: 0, background: '#fff', color: '#333', padding: '0 0.875rem', fontSize: '0.9rem', width: '100%' }}
                   />
                   <button
                     type="button"
@@ -350,7 +351,7 @@ function KioskHomePageInner() {
               </div>
             </div>
             <button type="submit" id="kiosk-search-btn" style={{
-              minHeight: 48, width: '100%', border: '1px solid #000080', borderRadius: 4,
+              minHeight: 48, width: '100%', border: '1px solid #000080', borderRadius: 0,
               background: '#000080', color: '#fff', fontFamily: 'Arial, sans-serif',
               fontSize: '0.74rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer',
             }}>Search</button>

@@ -4,28 +4,34 @@ import { Power } from 'lucide-react';
 
 interface TopNavProps {
   showCenterTitle?: boolean;
-  centerTitle?: string;
+  heading?: string;
+  title?: string;
+  tagline?: string;
   showClock?: boolean;
   showSessionMenu?: boolean;
+  logoutHref?: string;
   variant?: 'default' | 'login';
 }
 
 export default function TopNav({
   showCenterTitle = false,
-  centerTitle = 'FILE STATUS INFORMATION SYSTEM - INS DEGA',
+  heading = 'INS DEGA',
+  title = 'File Status Management System',
+  tagline = 'YOUR ONE STOP SOLUTION',
   showClock = true,
   showSessionMenu = true,
+  logoutHref = '/api/auth/logout?portal=staff',
   variant = 'default',
 }: TopNavProps) {
   return (
     <nav className={`topnav${variant === 'login' ? ' topnav--login' : ''}`} role="navigation" aria-label="Global Navigation">
-      {/* LEFT — INS DEGA logo */}
+      {/* LEFT — Eastern Naval Command logo */}
       <div className="topnav-left">
         <Image
-          src="/logo/ins-dega-transparent.png"
-          alt="INS Dega Emblem"
-          width={64}
-          height={64}
+          src="/logo/eastern-command.png"
+          alt="Eastern Naval Command Badge"
+          width={737}
+          height={750}
           className="topnav-logo"
           priority
         />
@@ -34,13 +40,15 @@ export default function TopNav({
       {/* CENTER — Screen title (shown only on Home page) */}
       <div className="topnav-center">
         {showCenterTitle && (
-          <div className="topnav-center-text" style={{ fontSize: '1.1rem', letterSpacing: '0.12em' }}>
-            {centerTitle}
+          <div className="topnav-center-text">
+            <div className="topnav-center-heading">{heading}</div>
+            <div className="topnav-center-title">{title}</div>
+            <div className="topnav-center-tagline">{tagline}</div>
           </div>
         )}
       </div>
 
-      {/* RIGHT — ENC logo + clock + session menu */}
+      {/* RIGHT — INS DEGA logo (larger) + clock + session menu */}
       <div className="topnav-right">
         {showClock && <ISTClock />}
         {showSessionMenu && (
@@ -49,18 +57,18 @@ export default function TopNav({
               <Power size={18} aria-hidden="true" />
             </summary>
             <div className="topnav-menu-panel" role="menu" aria-label="Session">
-              <a href="/api/auth/logout" className="topnav-menu-item" role="menuitem">
+              <a href={logoutHref} className="topnav-menu-item" role="menuitem">
                 Logout
               </a>
             </div>
           </details>
         )}
         <Image
-          src="/logo/eastern-command.png"
-          alt="Eastern Naval Command Badge"
-          width={64}
-          height={64}
-          className="topnav-logo"
+          src="/logo/ins-dega-transparent.png"
+          alt="INS Dega Emblem"
+          width={701}
+          height={864}
+          className="topnav-logo topnav-logo--large"
           priority
         />
       </div>

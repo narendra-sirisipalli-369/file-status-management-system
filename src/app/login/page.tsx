@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 import styles from './page.module.css';
 
 export default function LoginPage() {
   const router = useRouter();
+  const [portal, setPortal] = useState<'select' | 'admin' | 'user'>('select');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -21,20 +23,16 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, portal: 'staff' }),
+        body: JSON.stringify({
+          username,
+          password,
+          portal: 'staff',
+          role: portal === 'admin' ? 'ADMIN' : 'USER',
+        }),
       });
       if (res.ok) {
-        const data = await res.json();
-        // KIOSK_USER -> kiosk, MAILMAN -> /admin/scan, others -> /admin
-        const role = data.role ?? '';
-        if (role === 'KIOSK_USER') {
-          setError('Invalid username or password');
-        } else if (role === 'MAILMAN_INTERNAL' || role === 'MAILMAN_EXTERNAL' || role === 'MAILMAN') {
-          router.replace('/admin/scan');
-        } else {
-          router.replace('/admin');
-        }
-        if (role !== 'KIOSK_USER') router.refresh();
+        router.replace('/admin');
+        router.refresh();
       } else {
         const d = await res.json();
         setError(d.error ?? 'Authentication failed. Check credentials and try again.');
@@ -46,26 +44,42 @@ export default function LoginPage() {
     }
   };
 
-  return (
-    <div className={styles.wrapper}>
-
-      {/* Organisation Header */}
-      <div className={styles.header}>
-        <div className={styles.orgPanel}>
-          <div className={styles.logos}>
-            <div>
-              <div className={styles.orgTitle}>INS DEGA</div>
-            </div>
-          </div>
-          <div className={styles.orgSub} style={{ marginTop: '0.5rem' }}>
-            Logistics Department — File Status Management System
+  if (portal === 'select') {
+    return (
+      <div className={styles.wrapper}>
+        <div className={styles.card} role="main">
+          <div className={styles.cardTitle}>Select Login Type</div>
+          <div className={styles.portalSelect}>
+            <button
+              type="button"
+              className={styles.portalButton}
+              onClick={() => setPortal('admin')}
+            >
+              Admin
+            </button>
+            <button
+              type="button"
+              className={styles.portalButton}
+              onClick={() => setPortal('user')}
+            >
+              User
+            </button>
           </div>
         </div>
       </div>
+    );
+  }
 
-      {/* Login Card */}
-      <div className={styles.card} role="main">
-        <div className={styles.cardTitle}>Authorised Personnel Access</div>
+  return (
+    <div className={styles.wrapper}>
+
+      {/* Login Card — the global TopNav (variant="login") above already
+          carries the org branding, so this page doesn't repeat it. */}
+      <div className={`${styles.card} ${styles.formCard}`} role="main">
+        <button type="button" className={styles.backLink} onClick={() => setPortal('select')}>
+          ‹ Back
+        </button>
+        <div className={styles.cardTitle}>{portal === 'admin' ? 'Admin Login' : 'User Login'}</div>
 
         {error && (
           <div className={styles.errorAlert} role="alert" aria-live="assertive">
@@ -119,20 +133,10 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <button
-            id="login-submit"
-            type="submit"
-            className={styles.submitBtn}
-            disabled={loading}
-          >
+          <Button id="login-submit" type="submit" fullWidth disabled={loading} className={styles.submit}>
             {loading ? 'Authenticating...' : 'Sign In'}
-          </button>
+          </Button>
         </form>
-
-        {/* Classification Footer */}
-        <div className={styles.footerNotice}>
-          Restricted Access - Authorised Personnel Only
-        </div>
       </div>
     </div>
   );

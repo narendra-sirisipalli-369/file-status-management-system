@@ -1,106 +1,158 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import QRCode from 'react-qr-code';
-import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
-import { STAGES, formatINR } from '@/lib/qrService';
-import { buildKioskTrackUrl } from '@/lib/trackingId';
+import { formatINR, buildFileUrl } from '@/lib/qrService';
 
-const PROCESSING_TYPES = ['GFR', 'GEM'];
-const DEPARTMENTS = ['Logistics', 'INAS 321', 'INAS 324', 'INAS 551', 'RO', 'INAS 333', 'ALD', 'BLO'];
-const FILE_TYPES  = ['800(A)', '800(R)', '110(R)'];
+interface LookupOption { id: string; name: string }
+interface HeadCodeEntry { id: string; code: string; name: string; majorId?: string | null; headCodeId?: string | null }
+interface DepartmentOption { id: string; name: string }
+
+/** Master Data's Head Code entries save Name = Code (no separate descriptive label), so drop the redundant " — name" suffix when they're identical. */
+function headCodeLabel(code: string, name: string): string {
+  return name && name !== code ? `${code} — ${name}` : code;
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  description: 'Case Description',
+  proposalValue: 'Proposal Value',
+  departmentId: 'Department',
+  procurementModeId: 'Mode of Procurement',
+  authorityId: 'Authority',
+  majorHeadId: 'Major Head',
+  minorHeadId: 'Minor Head',
+  codeHeadId: 'Code Head',
+};
+
+/** Zod validation errors come back as {error: "Validation failed", details: [...]} — surface the actual per-field reason instead of the generic label. */
+function describeApiError(data: { error?: string; details?: { path?: (string | number)[]; message: string }[] }): string {
+  if (data.details?.length) {
+    return data.details
+      .map((d) => {
+        const field = d.path?.[0];
+        const label = typeof field === 'string' ? (FIELD_LABELS[field] ?? field) : null;
+        return label ? `${label}: ${d.message}` : d.message;
+      })
+      .join(' ');
+  }
+  return data.error ?? 'Submission failed. Please verify all fields and retry.';
+}
+interface SimilarMatch { smsRefNo: string; description: string; similarity: number }
+
+const PRINT_SERVICE_URL = 'http://localhost:8787/print';
 
 export default function FileEntryPage() {
-  const dateRowRef = useRef<HTMLDivElement | null>(null);
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
-  const [dateMonth, setDateMonth] = useState(() => new Date());
-  const [yearOptions] = useState(() => {
-    const now = new Date().getFullYear();
-    const start = now - 10;
-    return Array.from({ length: 21 }, (_, i) => start + i);
-  });
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [procurementModes, setProcurementModes] = useState<LookupOption[]>([]);
+  const [authorities, setAuthorities] = useState<LookupOption[]>([]);
+  const [majorHeadCodes, setMajorHeadCodes] = useState<HeadCodeEntry[]>([]);
+  const [headCodes, setHeadCodes] = useState<HeadCodeEntry[]>([]);
+  const [headCodeItems, setHeadCodeItems] = useState<HeadCodeEntry[]>([]);
+  const [majorHeadId, setMajorHeadId] = useState('');
+  const [minorHeadId, setMinorHeadId] = useState('');
+  const [codeHeadId, setCodeHeadId] = useState('');
+
   const [form, setForm] = useState({
-    description:    '',
-    proposalValue:  '',
-    head:           FILE_TYPES[0],
-    department:     DEPARTMENTS[0],
-    typeProcessing: PROCESSING_TYPES[0],
-    dateSubmission: '',
-    mobileNumber:   '',
-    smsRefNoOverride: '',
+    description: '',
+    proposalValue: '',
+    departmentId: '',
+    procurementModeId: '',
+    authorityId: '',
   });
 
   const [generatedFile, setGeneratedFile] = useState<{
     smsRefNo: string;
     fileId: string;
     secureTrackingId: string;
+    qrText: string;
   } | null>(null);
 
   const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState('');
+  const [error, setError] = useState('');
+  const [similarMatches, setSimilarMatches] = useState<SimilarMatch[]>([]);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const [printStatus, setPrintStatus] = useState<{ ok: boolean; message: string } | null>(null);
+  const [confirmDuplicate, setConfirmDuplicate] = useState(false);
+
+  const exactMatches = similarMatches.filter(
+    (m) => m.description.trim().toLowerCase() === form.description.trim().toLowerCase()
+  );
+  const exactDuplicate = exactMatches[0];
+
+  async function loadLookups() {
+    const [d, pm, a, mhc, hc, items] = await Promise.all([
+      fetch('/api/departments').then((r) => r.json()),
+      fetch('/api/procurement-modes').then((r) => r.json()),
+      fetch('/api/authorities').then((r) => r.json()),
+      fetch('/api/major-head-codes').then((r) => r.json()),
+      fetch('/api/head-codes').then((r) => r.json()),
+      fetch('/api/head-code-items').then((r) => r.json()),
+    ]);
+    setDepartments(d);
+    setProcurementModes(pm);
+    setAuthorities(a);
+    setMajorHeadCodes(mhc);
+    setHeadCodes(hc);
+    setHeadCodeItems(items);
+    setForm((prev) => ({
+      ...prev,
+      departmentId: prev.departmentId || d[0]?.id || '',
+      procurementModeId: prev.procurementModeId || pm[0]?.id || '',
+      authorityId: prev.authorityId || a[0]?.id || '',
+    }));
+    setMajorHeadId((prev) => prev || mhc[0]?.id || '');
+  }
+
+  useEffect(() => {
+    loadLookups();
+  }, []);
+
+  /** Major, Minor, and Code Head are picked independently — selecting one never clears the others. */
+  const handleMajorChange = (e: React.ChangeEvent<HTMLSelectElement>) => setMajorHeadId(e.target.value);
+  const handleMinorChange = (e: React.ChangeEvent<HTMLSelectElement>) => setMinorHeadId(e.target.value);
+  const handleCodeChange = (e: React.ChangeEvent<HTMLSelectElement>) => setCodeHeadId(e.target.value);
+
+
+  useEffect(() => {
+    const description = form.description.trim();
+    if (description.length < 3) {
+      setSimilarMatches([]);
+      return;
+    }
+    setCheckingDuplicate(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/files/check-duplicate?description=${encodeURIComponent(description)}`);
+        const data = await res.json();
+        setSimilarMatches(Array.isArray(data.matches) ? data.matches : []);
+      } catch {
+        // Non-critical — the server still enforces the exact-duplicate rule on submit.
+      } finally {
+        setCheckingDuplicate(false);
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [form.description]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
-  };
-
-  const toggleDatePicker = () => {
-    setDatePickerOpen(open => !open);
-  };
-
-  const fmtDateForDisplay = (iso: string) => {
-    // iso: YYYY-MM-DD -> display: MM / DD / YYYY (matches placeholder style)
-    const [y, m, d] = iso.split('-');
-    if (!y || !m || !d) return iso;
-    return `${m} / ${d} / ${y}`;
-  };
-
-  const parseIsoDate = (iso: string) => {
-    if (!iso) return null;
-    const [y, m, d] = iso.split('-').map(Number);
-    if (!y || !m || !d) return null;
-    return new Date(y, m - 1, d);
-  };
-
-  const toIsoDate = (date: Date) => {
-    const yyyy = `${date.getFullYear()}`;
-    const mm = `${date.getMonth() + 1}`.padStart(2, '0');
-    const dd = `${date.getDate()}`.padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-  };
-
-  const getMonthMatrix = (monthDate: Date) => {
-    const year = monthDate.getFullYear();
-    const month = monthDate.getMonth();
-    const first = new Date(year, month, 1);
-    const startDay = first.getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const cells: Array<number | null> = [];
-    for (let i = 0; i < startDay; i += 1) cells.push(null);
-    for (let day = 1; day <= daysInMonth; day += 1) cells.push(day);
-    return { year, month, cells };
-  };
-
-  useEffect(() => {
-    if (datePickerOpen) {
-      const selected = parseIsoDate(form.dateSubmission);
-      setDateMonth(selected ?? new Date());
+    setForm((prev) => ({ ...prev, [name]: value }));
+    if (name === 'description') {
+      setConfirmDuplicate(false);
     }
-  }, [datePickerOpen, form.dateSubmission]);
-
-  useEffect(() => {
-    if (!datePickerOpen) return;
-    const onClick = (event: MouseEvent) => {
-      if (!dateRowRef.current?.contains(event.target as Node)) {
-        setDatePickerOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
-  }, [datePickerOpen]);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (exactDuplicate && !confirmDuplicate) {
+      setError(`A file with this exact description already exists (${exactDuplicate.smsRefNo}). Check the confirmation below to create a new file with this name anyway, or use a different description.`);
+      return;
+    }
+    if (!majorHeadId) {
+      setError('Select a Major Head.');
+      return;
+    }
     setLoading(true);
     setError('');
     setGeneratedFile(null);
@@ -110,36 +162,65 @@ export default function FileEntryPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          description:    form.description,
-          proposalValue:  parseFloat(form.proposalValue),
-          head:           form.head,
-          department:     form.department,
-          typeProcessing: form.typeProcessing,
-          dateSubmission: form.dateSubmission || undefined,
-          mobileNumber:   form.mobileNumber,
-          smsRefNoOverride: form.smsRefNoOverride || undefined,
+          description: form.description,
+          proposalValue: parseFloat(form.proposalValue),
+          departmentId: form.departmentId,
+          procurementModeId: form.procurementModeId,
+          authorityId: form.authorityId,
+          majorHeadId,
+          minorHeadId: minorHeadId || null,
+          codeHeadId: codeHeadId || null,
+          allowDuplicate: confirmDuplicate,
         }),
       });
 
       const data = await res.json();
       if (res.ok) {
+        setPrintStatus(null);
         setGeneratedFile({
-          smsRefNo:         data.data.smsRefNo,
-          fileId:           data.data.fileId,
+          smsRefNo: data.data.smsRefNo,
+          fileId: data.data.fileId,
           secureTrackingId: data.data.secureTrackingId,
+          qrText: buildFileUrl(data.data.fileId),
         });
-        setForm({
-          description: '', proposalValue: '', head: FILE_TYPES[0],
-          department: DEPARTMENTS[0], typeProcessing: PROCESSING_TYPES[0],
-          dateSubmission: '', mobileNumber: '', smsRefNoOverride: '',
-        });
+        setForm((prev) => ({ ...prev, description: '', proposalValue: '' }));
+        setConfirmDuplicate(false);
       } else {
-        setError(data.error ?? 'Submission failed. Please verify all fields and retry.');
+        setError(describeApiError(data));
       }
-    } catch {
-      setError('Network error. Please check your connection and retry.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Network error. Please check your connection and retry.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePrint = async () => {
+    if (!generatedFile) return;
+    setPrinting(true);
+    setPrintStatus(null);
+    try {
+      const res = await fetch(PRINT_SERVICE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          qrData: generatedFile.qrText,
+          fileName: generatedFile.smsRefNo,
+        }),
+      });
+      const result = await res.json();
+      if (res.ok && result.ok) {
+        setPrintStatus({ ok: true, message: `QR printed successfully. File Number: ${generatedFile.smsRefNo}` });
+      } else {
+        setPrintStatus({ ok: false, message: result.error ?? 'Print failed. Please retry.' });
+      }
+    } catch {
+      setPrintStatus({
+        ok: false,
+        message: 'Zebra printer service is not available. Please make sure the local Zebra print service is running.',
+      });
+    } finally {
+      setPrinting(false);
     }
   };
 
@@ -148,16 +229,15 @@ export default function FileEntryPage() {
       <div className="page-header">
         <div>
           <div className="page-title">File Entry — Inward</div>
-          <div className="page-sub">Register a new file and generate a secure QR tracking code</div>
         </div>
         <a href="/admin" className="btn btn-ghost" id="back-to-home-entry">Back to Home</a>
       </div>
 
       <div className="container">
-        <div className="grid-2" style={{ alignItems: 'start' }}>
+        <div className="grid-2" style={{ alignItems: 'stretch' }}>
 
           {/* ENTRY FORM */}
-          <div className="glass-panel" style={{ padding: 'var(--space-xl)', borderRadius: 'var(--radius-lg)' }}>
+          <div className="glass-panel" style={{ padding: 'var(--space-xl)', borderRadius: 'var(--radius-lg)', height: '100%' }}>
             <div className="section-title mb-lg" style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 'var(--letter-spacing-wide)', color: 'var(--navy)' }}>New File Registration</div>
 
             {error && <div className="alert alert-error mb-md" role="alert">{error}</div>}
@@ -165,8 +245,8 @@ export default function FileEntryPage() {
             <form onSubmit={handleSubmit} id="file-entry-form">
               <div className="form-grid">
 
-                <div className="input-group" style={{ gridColumn: '1 / -1' }}>
-                  <label htmlFor="entry-description">Description of Requirement</label>
+                <div className="input-group preserve-case" style={{ gridColumn: '1 / -1' }}>
+                  <label htmlFor="entry-description">Case Description</label>
                   <input
                     id="entry-description"
                     name="description"
@@ -174,10 +254,45 @@ export default function FileEntryPage() {
                     className="input-field"
                     value={form.description}
                     onChange={handleChange}
-                    placeholder="Supply or service requirement description"
+                    placeholder="Enter case description"
                     required
                     autoFocus
                   />
+                  {checkingDuplicate && (
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Checking for similar names...</span>
+                  )}
+                  {!checkingDuplicate && exactDuplicate && (
+                    <div className="alert alert-error" style={{ marginTop: 'var(--space-sm)', fontSize: '0.75rem' }}>
+                      <div style={{ marginBottom: 'var(--space-sm)' }}>
+                        {exactMatches.length > 1
+                          ? `${exactMatches.length} files already exist with this exact description:`
+                          : 'A file already exists with this exact description:'}
+                      </div>
+                      <select
+                        className="input-field preserve-case"
+                        style={{ marginBottom: 'var(--space-sm)' }}
+                        defaultValue={exactMatches[0]?.smsRefNo}
+                      >
+                        {exactMatches.map((m) => (
+                          <option key={m.smsRefNo} value={m.smsRefNo}>{m.smsRefNo} — {m.description}</option>
+                        ))}
+                      </select>
+                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-xs)', fontWeight: 400, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          id="confirm-duplicate-description"
+                          checked={confirmDuplicate}
+                          onChange={(e) => setConfirmDuplicate(e.target.checked)}
+                        />
+                        <span>I understand this name already exists. Create a new file with this name anyway.</span>
+                      </label>
+                    </div>
+                  )}
+                  {!checkingDuplicate && !exactDuplicate && similarMatches.length > 0 && (
+                    <div className="alert alert-info" style={{ marginTop: 'var(--space-sm)', fontSize: '0.75rem' }}>
+                      A similar file name already exists — choose a different description.
+                    </div>
+                  )}
                 </div>
 
                 <div className="input-group">
@@ -190,7 +305,7 @@ export default function FileEntryPage() {
                     value={form.proposalValue}
                     onChange={handleChange}
                     placeholder="Amount in INR"
-                    min="0"
+                    min="0.01"
                     step="0.01"
                     required
                   />
@@ -202,190 +317,53 @@ export default function FileEntryPage() {
                 </div>
 
                 <div className="input-group">
-                  <label htmlFor="entry-head">File Type / Head</label>
-                  <select id="entry-head" name="head" className="input-field" value={form.head} onChange={handleChange}>
-                    {FILE_TYPES.map(t => <option key={t}>{t}</option>)}
-                  </select>
-                </div>
-
-                <div className="input-group">
                   <label htmlFor="entry-dept">Department</label>
-                  <select id="entry-dept" name="department" className="input-field" value={form.department} onChange={handleChange}>
-                    {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
+                  <select id="entry-dept" name="departmentId" className="input-field" value={form.departmentId} onChange={handleChange}>
+                    {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
                 </div>
 
+                <div className="input-group" style={{ gridColumn: '1 / -1' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-sm)' }}>
+                    <div>
+                      <label htmlFor="entry-head-major" style={{ fontSize: '0.62rem' }}>Major Head</label>
+                      <select id="entry-head-major" className="input-field" value={majorHeadId} onChange={handleMajorChange} required>
+                        {!majorHeadId && <option value="">— Select —</option>}
+                        {majorHeadCodes.map((h) => <option key={h.id} value={h.id}>{headCodeLabel(h.code, h.name)}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="entry-head-minor" style={{ fontSize: '0.62rem' }}>Minor Head</label>
+                      <select id="entry-head-minor" className="input-field" value={minorHeadId} onChange={handleMinorChange}>
+                        <option value="">— None —</option>
+                        {headCodes.map((h) => <option key={h.id} value={h.id}>{headCodeLabel(h.code, h.name)}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="entry-head-code" style={{ fontSize: '0.62rem' }}>Code Head</label>
+                      <select id="entry-head-code" className="input-field" value={codeHeadId} onChange={handleCodeChange}>
+                        <option value="">— None —</option>
+                        {headCodeItems.map((h) => <option key={h.id} value={h.id}>{headCodeLabel(h.code, h.name)}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  {majorHeadCodes.length === 0 && (
+                    <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>No Major head codes configured yet — add one in Master Data.</span>
+                  )}
+                </div>
+
                 <div className="input-group">
-                  <label htmlFor="entry-type">Type of Processing</label>
-                  <select id="entry-type" name="typeProcessing" className="input-field" value={form.typeProcessing} onChange={handleChange}>
-                    {PROCESSING_TYPES.map(t => <option key={t}>{t}</option>)}
+                  <label htmlFor="entry-type">Mode of procurement</label>
+                  <select id="entry-type" name="procurementModeId" className="input-field" value={form.procurementModeId} onChange={handleChange}>
+                    {procurementModes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
                 </div>
 
-                <div className="input-group">
-                  <label htmlFor="entry-sms">SMS Reference No (Optional)</label>
-                  <input
-                    id="entry-sms"
-                    name="smsRefNoOverride"
-                    type="text"
-                    className="input-field"
-                    value={form.smsRefNoOverride}
-                    onChange={handleChange}
-                    placeholder="Auto-generated if left blank"
-                  />
-                </div>
-
                 <div className="input-group" style={{ gridColumn: '1 / -1' }}>
-                  <label htmlFor="entry-date-display">Date of Submission</label>
-                  <div className="date-row" ref={dateRowRef}>
-                    <input
-                      id="entry-date-display"
-                      type="text"
-                      className="input-field date-field"
-                      value={form.dateSubmission ? fmtDateForDisplay(form.dateSubmission) : ''}
-                      placeholder="mm / dd / yyyy"
-                      readOnly
-                      onClick={toggleDatePicker}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          toggleDatePicker();
-                        }
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="date-toggle"
-                      aria-label={datePickerOpen ? 'Close calendar' : 'Open calendar'}
-                      aria-pressed={datePickerOpen}
-                      onMouseDown={e => e.preventDefault()}
-                      onClick={toggleDatePicker}
-                    >
-                      <Calendar size={18} aria-hidden="true" />
-                    </button>
-                    {datePickerOpen && (
-                      <div className="calendar-popover" role="dialog" aria-label="Choose Date of Submission">
-                        <div className="calendar-header">
-                          <button
-                            type="button"
-                            className="calendar-nav"
-                            aria-label="Previous month"
-                            onClick={() => setDateMonth(new Date(dateMonth.getFullYear(), dateMonth.getMonth() - 1, 1))}
-                          >
-                            <ChevronLeft size={16} />
-                          </button>
-                          <div className="calendar-title">
-                            {dateMonth.toLocaleString('en-US', { month: 'long' })}
-                          </div>
-                          <select
-                            className="calendar-year"
-                            aria-label="Select year"
-                            value={dateMonth.getFullYear()}
-                            onChange={e => {
-                              const year = Number(e.target.value);
-                              setDateMonth(new Date(year, dateMonth.getMonth(), 1));
-                            }}
-                          >
-                            {yearOptions.map(year => (
-                              <option key={year} value={year}>{year}</option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            className="calendar-nav"
-                            aria-label="Next month"
-                            onClick={() => setDateMonth(new Date(dateMonth.getFullYear(), dateMonth.getMonth() + 1, 1))}
-                          >
-                            <ChevronRight size={16} />
-                          </button>
-                        </div>
-                        <div className="calendar-week">
-                          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                            <span key={day}>{day}</span>
-                          ))}
-                        </div>
-                        <div className="calendar-grid">
-                          {getMonthMatrix(dateMonth).cells.map((day, idx) => {
-                            if (!day) return <span key={`e-${idx}`} className="calendar-day is-empty" />;
-                            const date = new Date(dateMonth.getFullYear(), dateMonth.getMonth(), day);
-                            const iso = toIsoDate(date);
-                            const selected = iso === form.dateSubmission;
-                            return (
-                              <button
-                                type="button"
-                                key={`e-${idx}`}
-                                className={`calendar-day${selected ? ' is-selected' : ''}`}
-                                onClick={() => {
-                                  setForm(prev => ({ ...prev, dateSubmission: iso }));
-                                  setDatePickerOpen(false);
-                                }}
-                              >
-                                {day}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="input-group" style={{ gridColumn: '1 / -1' }}>
-                  <label htmlFor="entry-mobile">
-                    Registered Mobile Number
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.62rem', marginLeft: 4 }}>
-                      (Optional)
-                    </span>
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <span style={{
-                      position: 'absolute', left: '0.875rem', top: '50%',
-                      transform: 'translateY(-50%)', fontSize: '0.85rem',
-                      color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', pointerEvents: 'none',
-                    }}>
-                      +91
-                    </span>
-                    <input
-                      id="entry-mobile"
-                      name="mobileNumber"
-                      type="tel"
-                      className="input-field"
-                      value={form.mobileNumber}
-                      onChange={e => setForm(prev => ({ ...prev, mobileNumber: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
-                      placeholder="9876543210"
-                      maxLength={10}
-                      style={{ paddingLeft: '3rem', fontFamily: 'var(--font-mono)', letterSpacing: '0.08em' }}
-                    />
-                  </div>
-                  <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>
-                    Applicant mobile number — used for kiosk self-service tracking
-                  </span>
-                </div>
-              </div>
-
-              {/* Processing pipeline preview */}
-              <div style={{ margin: 'var(--space-md) 0', padding: 'var(--space-md)', background: 'var(--bg-light)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--navy)', marginBottom: '0.55rem' }}>
-                  Processing Pipeline
-                </div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                  {STAGES.map((s, i) => (
-                    <span key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{
-                        fontSize: '0.7rem',
-                        padding: '4px 10px',
-                        borderRadius: 6,
-                        background: i === 0 ? 'var(--navy)' : 'var(--bg-light)',
-                        color: i === 0 ? '#fff' : 'var(--text-muted)',
-                        border: '1px solid var(--border)',
-                        fontFamily: 'Arial, Helvetica, sans-serif',
-                        fontWeight: 700,
-                      }}>
-                        {s.short}
-                      </span>
-                      {i < STAGES.length - 1 && <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>-</span>}
-                    </span>
-                  ))}
+                  <label htmlFor="entry-authority">Authority</label>
+                  <select id="entry-authority" name="authorityId" className="input-field" value={form.authorityId} onChange={handleChange}>
+                    {authorities.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
                 </div>
               </div>
 
@@ -393,7 +371,7 @@ export default function FileEntryPage() {
                 id="file-entry-submit"
                 type="submit"
                 className="btn btn-primary w-full"
-                disabled={loading}
+                disabled={loading || (!!exactDuplicate && !confirmDuplicate)}
                 style={{ marginTop: 'var(--space-sm)' }}
               >
                 {loading ? 'Creating File Record...' : 'Create File and Generate QR'}
@@ -402,8 +380,8 @@ export default function FileEntryPage() {
           </div>
 
           {/* QR PANEL */}
-          <div>
-            <div className="glass-panel" style={{ padding: 'var(--space-xl)', borderRadius: 'var(--radius-lg)', minHeight: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ height: '100%' }}>
+            <div className="glass-panel" style={{ padding: 'var(--space-xl)', borderRadius: 'var(--radius-lg)', height: '100%', minHeight: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
               {generatedFile ? (
                 <>
                   <div style={{ textAlign: 'center' }}>
@@ -413,9 +391,9 @@ export default function FileEntryPage() {
                   </div>
                   <div className="qr-wrapper">
                     <QRCode
-                      value={buildKioskTrackUrl(generatedFile.secureTrackingId)}
+                      value={generatedFile.qrText}
                       size={200}
-                      level="H"
+                      level="M"
                     />
                   </div>
                   <div style={{ textAlign: 'center' }}>
@@ -427,6 +405,28 @@ export default function FileEntryPage() {
                   <div style={{ textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-secondary)', fontFamily: 'Arial, Helvetica, sans-serif', marginTop: 'var(--space-md)' }}>
                     Print and attach this QR code to the physical file folder
                   </div>
+
+                  {printStatus && (
+                    <div
+                      className={`alert ${printStatus.ok ? 'alert-success' : 'alert-error'}`}
+                      role="alert"
+                      style={{ marginTop: 'var(--space-sm)', fontSize: '0.75rem', textAlign: 'center' }}
+                    >
+                      {printStatus.message}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    id="print-qr-button"
+                    className="btn btn-success w-full"
+                    onClick={handlePrint}
+                    disabled={printing}
+                    style={{ marginTop: 'var(--space-sm)' }}
+                  >
+                    {printing ? 'Printing...' : 'Print QR'}
+                  </button>
+
                   <a
                     href={`/admin/file/${generatedFile.fileId}`}
                     className="btn btn-ghost"

@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
-import { prisma } from '@/lib/prisma';
 import { isValidTrackingId } from '@/lib/trackingId';
+import { getFileDetail } from '@/lib/fileRecordService';
 import styles from './page.module.css';
 
 export const dynamic = 'force-dynamic';
@@ -25,17 +25,13 @@ export default async function KioskTrackPage({ params }: Params) {
     notFound();
   }
 
-  // DB lookup — single, indexed, exact-match query
-  const file = await prisma.fileRecord.findUnique({
-    where: { secureTrackingId: secureId },
-    include: {
-      histories: { orderBy: { timestamp: 'asc' } },
-    },
-  });
+  const detail = await getFileDetail(secureId);
 
-  if (!file) {
+  if (!detail) {
     notFound(); // Strict 404 — no data leakage
   }
+
+  const { file, histories } = detail;
 
   return (
     <div className={styles.wrapper}>
@@ -52,19 +48,21 @@ export default async function KioskTrackPage({ params }: Params) {
               <thead>
                 <tr>
                   <th>Serial Number</th>
-                  <th>File Name</th>
+                  <th>Case Description</th>
                   <th>Proposal Value (INR)</th>
-                  <th>SMS Number</th>
-                  <th>File Type (Flash/Head)</th>
+                  <th>File No</th>
+                  <th>Mode of procurement</th>
+                  <th>Authority</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
                   <td>1</td>
-                  <td>{file.description}</td>
-                  <td>{fmtINR(file.proposalValue)}</td>
+                  <td className="preserve-case">{file.description}</td>
+                  <td>{fmtINR(Number(file.proposalValue))}</td>
                   <td>{file.smsRefNo}</td>
-                  <td>{file.typeProcessing}</td>
+                  <td>{file.procurementModeName}</td>
+                  <td>{file.authorityName || '-'}</td>
                 </tr>
               </tbody>
             </table>
@@ -77,26 +75,28 @@ export default async function KioskTrackPage({ params }: Params) {
             <table className={styles.table}>
               <thead>
                 <tr>
+                  <th>Action</th>
                   <th>Stage</th>
                   <th>Date of Submission</th>
-                  <th>Inspection Done By</th>
+                  <th>By</th>
                   <th>Remarks</th>
                 </tr>
               </thead>
               <tbody>
-                {file.histories.length === 0 && (
+                {histories.length === 0 && (
                   <tr>
-                    <td colSpan={4} className={styles.emptyState}>
+                    <td colSpan={5} className={styles.emptyState}>
                       No status history recorded.
                     </td>
                   </tr>
                 )}
 
-                {file.histories.map((history) => (
+                {histories.map((history) => (
                   <tr key={history.id}>
-                    <td>{history.stageName}</td>
+                    <td>{history.action}</td>
+                    <td>{history.stageName ?? '—'}</td>
                     <td>{fmtDate(history.timestamp)}</td>
-                    <td>{history.inspectionBy}</td>
+                    <td>{history.actorUsername ?? '—'}</td>
                     <td>{history.remarks}</td>
                   </tr>
                 ))}

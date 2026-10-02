@@ -8,3 +8,8 @@ src.zip
 dev.db
 *.db
 *.db-journal
+*.tsbuildinfo
+tmp/
+.venv*/
+backups/
+logs/

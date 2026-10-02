@@ -1,120 +1,111 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { jwtVerify } from 'jose';
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import { jwtVerify } from 'jose'
+import { ADMIN_ONLY_ROUTES } from '@/lib/rbac'
+import { JWT_SECRET_KEY } from '@/lib/jwtSecret'
 
-const SECRET_KEY = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'super-secret-key-for-dev'
-);
+const ADMIN_COOKIE = 'admin_token'
+const KIOSK_COOKIE = 'kiosk_token'
 
 // Routes allowed without any authentication
 const PUBLIC_ROUTES = [
-  '/',
-  '/login',
-  '/api/auth',
-  '/kiosk',
-  '/api/kiosk',
-  '/api/users/list',
-];
+  '/', '/login', '/api/auth', '/kiosk', '/api/kiosk', '/api/departments',
+  // The SMS-sending Android device authenticates with its own shared key
+  // (see /api/sms-queue/device/route.ts), not the admin/kiosk login cookie.
+  '/api/sms-queue/device',
+]
 
 function isPublic(pathname: string): boolean {
-  return PUBLIC_ROUTES.some(p => pathname === p || pathname.startsWith(p + '/') || pathname.startsWith(p + '?'));
+  return PUBLIC_ROUTES.some((p) => pathname === p || pathname.startsWith(p + '/') || pathname.startsWith(p + '?'))
 }
 
-function isLoginPath(pathname: string): boolean {
-  return (
-    pathname === '/login' ||
-    pathname.startsWith('/login/') ||
-    pathname === '/kiosk/login' ||
-    pathname.startsWith('/kiosk/login/')
-  );
-}
-
-function redirectForRole(request: NextRequest, role: string, loginDepartment?: string | null) {
-  if (role === 'KIOSK_USER') {
-    const dept = (loginDepartment ?? 'Logistics').toString();
-    return NextResponse.redirect(new URL(`/kiosk/home?department=${encodeURIComponent(dept)}`, request.url));
+function redirectForRole(request: NextRequest, role: string, departmentId?: string | null) {
+  if (role === 'KIOSK') {
+    return NextResponse.redirect(new URL(`/kiosk/files?departmentId=${encodeURIComponent(departmentId ?? '')}`, request.url))
   }
-  if (MAILMAN_ROLES.includes(role)) {
-    return NextResponse.redirect(new URL('/admin/scan', request.url));
-  }
-  return NextResponse.redirect(new URL('/admin', request.url));
+  return NextResponse.redirect(new URL('/admin', request.url))
 }
-
-// Mailman roles — locked to /admin/scan only
-const MAILMAN_ROLES = ['MAILMAN_INTERNAL', 'MAILMAN_EXTERNAL', 'MAILMAN'];
-
-// Routes restricted by role
-const BLOGO_ONLY = ['/admin/users'];
-const FILE_ENTRY_ALLOWED = ['B_LOGO', 'D_LOGO', 'INWARD', 'STORE_OFFICE'];
-const MAILMAN_ALLOWED = ['/admin/scan'];
 
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  const token = request.cookies.get('token')?.value;
+  const { pathname } = request.nextUrl
+  const adminToken = request.cookies.get(ADMIN_COOKIE)?.value
+  const kioskToken = request.cookies.get(KIOSK_COOKIE)?.value
+  const token = pathname.startsWith('/kiosk') ? kioskToken : adminToken
 
   // Prevent navigating back to login pages when already authenticated
-  if (isLoginPath(pathname) && token) {
+  if (pathname === '/login' || pathname.startsWith('/login/')) {
+    if (!adminToken) return NextResponse.next()
     try {
-      const { payload } = await jwtVerify(token, SECRET_KEY);
-      const role = payload.role as string;
-      const loginDepartment = (payload.loginDepartment as string | null) ?? null;
-      return redirectForRole(request, role, loginDepartment);
+      const { payload } = await jwtVerify(adminToken, JWT_SECRET_KEY)
+      return redirectForRole(request, payload.role as string, payload.departmentId as string | null)
+    } catch {
+      // ignore invalid/expired token and allow login page to render
+    }
+  }
+  if (pathname === '/kiosk/login' || pathname.startsWith('/kiosk/login/')) {
+    if (!kioskToken) return NextResponse.next()
+    try {
+      const { payload } = await jwtVerify(kioskToken, JWT_SECRET_KEY)
+      return redirectForRole(request, payload.role as string, payload.departmentId as string | null)
     } catch {
       // ignore invalid/expired token and allow login page to render
     }
   }
 
-  // Fully public routes
   if (isPublic(pathname)) {
-    return NextResponse.next();
+    // Public routes never require a token, but if a valid one is present
+    // (e.g. an already-logged-in ADMIN calling the "public" GET /api/departments
+    // endpoint before POSTing to it), still attach identity headers so the
+    // route handler's own role checks work correctly.
+    if (!token) return NextResponse.next()
+    try {
+      const { payload } = await jwtVerify(token, JWT_SECRET_KEY)
+      return NextResponse.next({ request: { headers: buildIdentityHeaders(request, payload) } })
+    } catch {
+      return NextResponse.next()
+    }
   }
 
-  // All other routes require valid JWT
+  // All other routes require a valid JWT
   if (!token) {
-    return NextResponse.redirect(new URL('/login', request.url));
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
   try {
-    const { payload } = await jwtVerify(token, SECRET_KEY);
-    const role = payload.role as string;
-    const loginDepartment = (payload.loginDepartment as string | null) ?? null;
+    const { payload } = await jwtVerify(token, JWT_SECRET_KEY)
+    const role = payload.role as string
+    const departmentId = (payload.departmentId as string | null) ?? null
 
-    // KIOSK_USER: may not access /admin routes
-    if (role === 'KIOSK_USER' && pathname.startsWith('/admin')) {
-      return redirectForRole(request, role, loginDepartment);
+    // KIOSK may not access /admin routes at all — everything there is ADMIN-only.
+    if (role === 'KIOSK' && pathname.startsWith('/admin')) {
+      return redirectForRole(request, role, departmentId)
     }
 
-    // MAILMAN: locked to /admin/scan only within the admin namespace
-    if (MAILMAN_ROLES.includes(role) && pathname.startsWith('/admin') && !MAILMAN_ALLOWED.some(p => pathname.startsWith(p))) {
-      return NextResponse.redirect(new URL('/admin/scan', request.url));
+    // USER is restricted to dashboard/file entry/file search — bounce it away
+    // from master data, Procurement Process, admin management, and reports.
+    if (role === 'USER' && ADMIN_ONLY_ROUTES.some((prefix) => pathname.startsWith(prefix))) {
+      return NextResponse.redirect(new URL('/admin/dashboard', request.url))
     }
 
-    // B_LOGO restricted pages (User Management)
-    if (BLOGO_ONLY.some(p => pathname.startsWith(p)) && role !== 'B_LOGO') {
-      return NextResponse.redirect(new URL('/admin', request.url));
-    }
-
-    // File Entry — only allowed for B_LOGO, INWARD, STORE_OFFICE
-    if (pathname.startsWith('/admin/file-entry') && !FILE_ENTRY_ALLOWED.includes(role)) {
-      return NextResponse.redirect(new URL('/admin', request.url));
-    }
-
-    // Inject user context headers for server components
-    const requestHeaders = new Headers(request.headers);
-    requestHeaders.set('x-user-id',          String(payload.userId));
-    requestHeaders.set('x-user-role',         role);
-    requestHeaders.set('x-username',          String(payload.username));
-    requestHeaders.set('x-login-department',  String(loginDepartment ?? ''));
-
-    return NextResponse.next({ request: { headers: requestHeaders } });
+    return NextResponse.next({ request: { headers: buildIdentityHeaders(request, payload) } })
   } catch {
     // Invalid or expired token
-    const response = NextResponse.redirect(new URL('/login', request.url));
-    response.cookies.delete('token');
-    return response;
+    const response = NextResponse.redirect(new URL('/login', request.url))
+    response.cookies.delete(ADMIN_COOKIE)
+    return response
   }
+}
+
+function buildIdentityHeaders(request: NextRequest, payload: Record<string, unknown>): Headers {
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-user-id', String(payload.userId))
+  requestHeaders.set('x-user-role', String(payload.role))
+  requestHeaders.set('x-username', String(payload.username))
+  requestHeaders.set('x-department-id', String(payload.departmentId ?? ''))
+  requestHeaders.set('x-department-name', String(payload.departmentName ?? ''))
+  return requestHeaders
 }
 
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico|logos/|logo/).*)'],
-};
+}

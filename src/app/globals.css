@@ -5,25 +5,39 @@
    ============================================================ */
 
 /* ── FONTS ── */
-/* Using standard system fonts (Arial, Helvetica) for 100% offline capability */
+/* Using standard system fonts (Arial, Helvetica) for 100% offline capability.
+   --font-mono is a real monospace stack (system-installed, no download) so
+   tabular content — tracking IDs, currency, dates, counts — actually gets
+   fixed-width digit alignment instead of silently falling back to Arial. */
 
 /* ── CSS TOKENS ── */
 :root {
   /* Fonts (offline-safe) */
   --font-body: Arial, sans-serif;
   --font-nav: Arial, sans-serif;
-  --font-mono: Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
 
-  /* Touch targets / radii */
+  /* Touch targets / radii — sharp edges throughout, no rounded corners anywhere */
   --touch-min: 48px;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+
+  /* ── FLUID SCALING ──
+     Everything below scales smoothly between a 10.1" tablet (~768px CSS
+     width) and a 15" laptop (~1920px CSS width), then holds flat outside
+     that range. Text/spacing set in rem tracks the root font-size clamp
+     below automatically; --topnav-h/--logo-size are px-based so header
+     chrome scales independently of body copy. */
+  --topnav-h:       clamp(84px, 54px + 3.9vw, 129px);
+  --topnav-h-login: clamp(100px, 69px + 4vw, 146px);
+  --logo-size:      clamp(64px, 40px + 3.2vw, 100px);
+  --logo-size-lg:   clamp(76px, 48px + 3.8vw, 120px);
 
   --nav-bg: #000080;
-  --page-bg: #FFFFFF;
+  --page-bg: #e8f1fb;
   --text-main: #333333;
-  --accent-border: #E2E8F0;
+  --accent-border: #55606e;
 
   /* Primary Colors */
   --navy:          var(--nav-bg);
@@ -36,8 +50,8 @@
   /* Background & Surface */
   --bg-page:       var(--page-bg);
   --bg-white:      #ffffff;
-  --bg-off-white:  #f9f9fb;
-  --bg-light:      #ebebf2;
+  --bg-off-white:  #f2f7fd;
+  --bg-light:      #dce9f8;
   --bg-input:      #ffffff;
 
   /* Text */
@@ -51,6 +65,9 @@
   /* Accents */
   --gold:          #b8860b;
   --gold-light:    #d4a017;
+  /* Warm, gold-tinted highlight — distinct from the blue page/card
+     backgrounds, so hovered rows/items are unambiguous. */
+  --hover-bg:      #fbead0;
   --success:       #1a7a09;
   --success-bg:    #e8f5e8;
   --danger:        #cc0000;
@@ -60,7 +77,7 @@
 
   /* Borders */
   --border:        var(--accent-border);
-  --border-dark:   #aaaacc;
+  --border-dark:   #1f2937;
   --border-navy:   #000080;
   --border-focus:  #000080;
 
@@ -78,6 +95,9 @@
   --elevate-1: 0 2px 10px rgba(0,0,128,0.08);
   --elevate-2: 0 10px 30px -10px rgba(0,0,128,0.15);
   --elevate-3: 0 20px 50px -20px rgba(0,0,128,0.25);
+  /* Modals sit above panels/glass surfaces, which reused --elevate-2 — give
+     modals their own, distinctly heavier tier instead of sharing one. */
+  --elevate-4: 0 30px 70px -15px rgba(0,0,128,0.35);
 
   /* Spacing */
   --space-xs:   0.25rem;
@@ -91,6 +111,33 @@
   --letter-spacing-tech: 0.05em;
   --letter-spacing-wide: 0.12em;
 
+  /* ── Neutral ramp ──────────────────────────────────────────────────────
+     Derived to sit alongside navy/gold rather than replace the ad hoc
+     grays already in use (--text-muted, --bg-light, --border-dark, ...).
+     Not yet consumed anywhere — components adopt these incrementally. */
+  --gray-50:  #f7f6f2;
+  --gray-100: #eeece5;
+  --gray-200: #e4e1d8;
+  --gray-300: #cfccc2;
+  --gray-400: #9aa0ac;
+  --gray-500: #767c88;
+  --gray-600: #4b5160;
+  --gray-700: #33394a;
+  --gray-800: #1e2130;
+  --gray-900: #0f1115;
+
+  /* ── Type scale ────────────────────────────────────────────────────────
+     Named sizes replacing scattered inline fontSize values. Weight isn't
+     bundled in — call sites already know whether a given piece of text is
+     bold (headers) or regular (body), this only fixes the *size* drift. */
+  --fs-display:  2.25rem;
+  --fs-h1:       1.5rem;
+  --fs-h2:       1.125rem;
+  --fs-h3:       0.95rem;
+  --fs-body-lg:  0.95rem;
+  --fs-body:     0.875rem;
+  --fs-caption:  0.75rem;
+
   /* Transitions */
   --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 
@@ -103,6 +150,58 @@
   --z-modal:  200;
 }
 
+/* ── DARK THEME TOKENS (prepared, not yet activated) ─────────────────────
+   Same variable names as :root, redefined for a dark surface. Deliberately
+   scoped to [data-theme="dark"] only — no @media (prefers-color-scheme)
+   yet, and nothing in the app sets this attribute yet, so this block has
+   zero effect on the app as it renders today. It's here so the layout-shell
+   phase (theme toggle) can switch the whole app by setting one attribute,
+   instead of redesigning color-by-color later. Navy lightens rather than
+   darkens for dark backgrounds — inverted naively it would fail contrast. */
+:root[data-theme="dark"] {
+  --nav-bg:        #17224a;
+  --page-bg:       #0f1115;
+  --text-main:     #e4e1d8;
+  --accent-border: #2a2e38;
+
+  --navy:          #7c93c4;
+  --navy-dark:     #5a749f;
+  --navy-mid:      #6d87b8;
+  --navy-light:    #93a8d2;
+  --navy-faint:    #1a2338;
+  --navy-hover:    #93a8d2;
+
+  --bg-page:       var(--page-bg);
+  --bg-white:      #171a21;
+  --bg-off-white:  #14161c;
+  --bg-light:      #1e2130;
+  --bg-input:      #171a21;
+
+  --text-black:    #f7f6f2;
+  --text-primary:  var(--text-main);
+  --text-secondary:#a6abb8;
+  --text-muted:    #767c88;
+  --text-white:    #f7f6f2;
+  --text-navy:     #93a8d2;
+
+  --gold:          #d9b96a;
+  --gold-light:    #e6cc8f;
+  --success:       #6bbf59;
+  --success-bg:    #17281a;
+  --danger:        #e58b85;
+  --danger-bg:     #2a1917;
+  --warning:        #d9a94a;
+  --warning-bg:    #2a2213;
+
+  --border:        var(--accent-border);
+  --border-dark:   #3a3f4c;
+  --border-navy:   #7c93c4;
+  --border-focus:  #93a8d2;
+
+  --glass-bg: rgba(23, 26, 33, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.08);
+}
+
 /* ── RESET ── */
 *, *::before, *::after {
   box-sizing: border-box;
@@ -110,13 +209,18 @@
   padding: 0;
 }
 
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  /* Drives every rem-based font-size/spacing in the app. 14px at a 768px
+     tablet viewport, 17px at a 1920px laptop viewport, flat outside that. */
+  font-size: clamp(14px, 12px + 0.26vw, 17px);
+}
 
 body {
   background-color: var(--bg-page);
   color: var(--text-primary);
   font-family: var(--font-body);
-  font-size: 14px;
+  font-size: 1rem;
   line-height: 1.6;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
@@ -194,11 +298,16 @@ select:disabled {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 4px solid var(--gold);
-  padding: 0 var(--space-xl);
-  display: flex;
+  padding: 0.5rem var(--space-lg);
+  display: grid;
+  /* Center column is sized to its own text (auto) instead of a forced
+     equal third — that forced-third layout is what squeezed "SYSTEM" onto
+     its own line on narrower screens. The two 1fr columns share whatever
+     width is left, keeping the title visually centered. */
+  grid-template-columns: 1fr auto 1fr;
+  column-gap: var(--space-sm);
   align-items: center;
-  justify-content: space-between;
-  height: 92px;
+  min-height: var(--topnav-h);
   position: sticky;
   top: 0;
   z-index: var(--z-nav);
@@ -206,45 +315,67 @@ select:disabled {
 }
 
 .topnav--login {
-  height: 104px;
-  padding: 0 3rem;
+  min-height: var(--topnav-h-login);
+  padding: 0.6rem 1.6rem;
   border-bottom-width: 5px;
 }
 
 .topnav-left {
   display: flex;
   align-items: center;
-  gap: var(--space-md);
-  flex: 1;
+  gap: var(--space-sm);
 }
 
 .topnav-center {
-  flex: 1;
   text-align: center;
 }
 
 .topnav-center-text {
   font-family: Arial, sans-serif;
   font-weight: 700;
-  font-size: 1rem;
+  line-height: 1.3;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-white);
-  white-space: pre-line;
+}
+
+/* "INS DEGA" — the heading, largest of the three lines. */
+.topnav-center-heading {
+  font-size: clamp(16px, 10px + 0.9vw, 26px);
+  font-weight: 900;
+}
+
+/* "File Status Management System" — independent of the root fluid scale
+   (which only bottoms out at 14px) — this needs to shrink further on a
+   narrow tablet so it stays on one line. */
+.topnav-center-title {
+  font-size: clamp(13px, 8px + 0.69vw, 21px);
+}
+
+/* "YOUR ONE STOP SOLUTION" — a tagline, smaller and lighter than the title. */
+.topnav-center-tagline {
+  font-size: clamp(9px, 6px + 0.4vw, 13px);
+  font-weight: 500;
+  font-style: italic;
+  letter-spacing: 0.08em;
+  opacity: 0.85;
 }
 
 .topnav-right {
   display: flex;
   align-items: center;
-  gap: var(--space-md);
-  flex: 1;
+  gap: var(--space-sm);
   justify-content: flex-end;
 }
 
 .topnav-logo {
-  height: 60px;
+  height: var(--logo-size);
   width: auto;
   object-fit: contain;
+}
+
+.topnav-logo--large {
+  height: var(--logo-size-lg);
 }
 
 .topnav-org-name {
@@ -333,7 +464,7 @@ select:disabled {
   min-width: 160px;
   background: rgba(8, 12, 32, 0.98);
   border: 1px solid rgba(255,255,255,0.16);
-  border-radius: 10px;
+  border-radius: 0;
   box-shadow: var(--elevate-2);
   padding: 0.35rem;
   z-index: calc(var(--z-nav) + 1);
@@ -345,7 +476,7 @@ select:disabled {
   justify-content: flex-start;
   gap: 0.5rem;
   padding: 0.55rem 0.65rem;
-  border-radius: 8px;
+  border-radius: 0;
   color: rgba(255,255,255,0.95);
   font-family: Arial, sans-serif;
   font-size: 0.68rem;
@@ -494,6 +625,26 @@ select:disabled {
   width: 100%;
   min-height: var(--touch-min);
   font-family: var(--font-body);
+  text-transform: uppercase;
+}
+
+/* Display-only uppercase for data across the app (per requirement) — this is
+   purely visual (CSS), never touches what's actually stored. Case Description
+   is the one exception: wrap it (or its containing row/cell) in
+   .preserve-case wherever it's shown or typed. Set on body (not just td) so
+   it cascades via inheritance into every div/span/p/a used to display data,
+   not only table cells — form controls need it set explicitly since they
+   don't inherit text-transform from an ancestor by default. */
+body {
+  text-transform: uppercase;
+}
+
+.preserve-case,
+.preserve-case .input-field,
+.preserve-case input,
+.preserve-case select,
+.preserve-case textarea {
+  text-transform: none;
 }
 
 .input-field:focus {
@@ -562,7 +713,7 @@ select.input-field option { background: #fff; color: var(--text-primary); }
   width: 36px;
   height: 36px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 0;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
@@ -586,7 +737,7 @@ select.input-field option { background: #fff; color: var(--text-primary); }
   width: 280px;
   background: #ffffff;
   border: 1px solid #d9e0ec;
-  border-radius: 12px;
+  border-radius: 0;
   box-shadow: 0 14px 28px rgba(10, 32, 68, 0.16);
   padding: 0.9rem 0.9rem 0.75rem;
 }
@@ -612,7 +763,7 @@ select.input-field option { background: #fff; color: var(--text-primary); }
   background: #f7f8fb;
   color: var(--text-primary);
   height: 28px;
-  border-radius: 8px;
+  border-radius: 0;
   font-size: 0.72rem;
   font-weight: 600;
   padding: 0 0.4rem;
@@ -630,7 +781,7 @@ select.input-field option { background: #fff; color: var(--text-primary); }
   color: var(--text-secondary);
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -662,7 +813,7 @@ select.input-field option { background: #fff; color: var(--text-primary); }
   border: 0;
   background: transparent;
   color: #1e2a3b;
-  border-radius: 8px;
+  border-radius: 0;
   height: 32px;
   font-size: 0.78rem;
   cursor: pointer;
@@ -715,7 +866,7 @@ select.input-field option { background: #fff; color: var(--text-primary); }
   color: var(--navy);
   border: 1px solid var(--navy);
 }
-.btn-ghost:hover { background: var(--navy-faint); }
+.btn-ghost:hover { background: var(--hover-bg); }
 
 .btn-danger {
   background: var(--danger-bg);
@@ -724,28 +875,105 @@ select.input-field option { background: #fff; color: var(--text-primary); }
 }
 .btn-danger:hover { background: #ffe0e0; }
 
+.btn-secondary {
+  background: #eff3ff;
+  color: var(--navy);
+  border: 1px solid var(--navy);
+}
+.btn-secondary:hover {
+  background: var(--hover-bg);
+}
+
 .btn-success {
   background: var(--success-bg);
   color: var(--success);
   border: 1px solid #aaddaa;
 }
 .btn-success:hover { background: #d4edda; }
+.btn-success:active { background: #bfe6bf; }
+
+.btn-warning {
+  background: var(--warning-bg);
+  color: var(--warning);
+  border: 1px solid #e0c179;
+}
+.btn-warning:hover { background: #ffefc2; }
+.btn-warning:active { background: #ffe5a0; }
+
+/* Pressed-state feedback — every button visibly darkens/deepens on click,
+   not just on hover, so pressing an action always shows a colour change. */
+.btn-primary:active { background: var(--navy-dark); }
+.btn-ghost:active { background: #d8dcf0; }
+.btn-secondary:active { background: #d8dcf0; }
+.btn-danger:active { background: #ffcccc; }
 
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
+}
+
+.btn-sm {
+  min-height: 24px;
+  padding: 0 0.3rem;
+  font-size: 0.6rem;
+  gap: 3px;
+}
 
 .w-full { width: 100%; }
 
 /* ── DATA TABLE ── */
 .table-wrap {
   overflow-x: auto;
+  background: var(--bg-white);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
+  /* Keep the horizontal scrollbar always visible (not an OS overlay) so a
+     table wider than its panel never reads as "the last column is missing" —
+     it reads as "scroll right", which is what it actually is. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.table-wrap::-webkit-scrollbar {
+  height: 10px;
+}
+
+.table-wrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Fixed-height internal scroll box for lists that stay in place (Master Data
+   panels, Users) rather than paginating — the table body scrolls within a
+   bounded box instead of growing the page. */
+.table-scroll-box {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.table-scroll-box::-webkit-scrollbar {
+  width: 10px;
+}
+
+.table-scroll-box::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.table-wrap::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.table-wrap::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }
 
 .data-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.82rem;
+  background: var(--bg-white);
 }
 
 .data-table thead {
@@ -781,8 +1009,15 @@ select.input-field option { background: #fff; color: var(--text-primary); }
 
 .data-table td:last-child { border-right: none; }
 
-.data-table tbody tr { transition: var(--transition); }
-.data-table tbody tr:hover { background: var(--navy-faint); }
+/* Tighter cell padding for wide, column-heavy tables (e.g. Users) that would
+   otherwise need horizontal scroll inside a grid-sidebar layout. */
+.data-table.compact th,
+.data-table.compact td {
+  padding: 0 0.5rem;
+}
+
+.data-table tbody tr { transition: var(--transition); background: var(--bg-white); }
+.data-table tbody tr:hover { background: var(--hover-bg); }
 .data-table tbody tr:last-child td { border-bottom: none; }
 
 /* Click-here row button */
@@ -815,7 +1050,7 @@ select.input-field option { background: #fff; color: var(--text-primary); }
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  border-radius: 3px;
+  border-radius: 0;
   font-family: var(--font-nav);
   font-size: 0.6rem;
   font-weight: 700;
@@ -1127,7 +1362,48 @@ select.input-field option { background: #fff; color: var(--text-primary); }
 /* ── GRID LAYOUTS ── */
 .grid-2       { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-xl); }
 .grid-3       { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-xl); }
-.grid-sidebar { display: grid; grid-template-columns: 320px 1fr; gap: var(--space-xl); }
+.grid-sidebar { display: grid; grid-template-columns: minmax(320px, 420px) 1fr; gap: var(--space-xl); align-items: start; }
+
+.form-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
+.user-actions {
+  display: inline-flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.user-actions .btn {
+  min-width: 88px;
+}
+
+.table-panel {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--elevate-2);
+}
+
+.table-panel-header {
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.table-panel-body {
+  padding: 0;
+}
+
+.table-panel-header .section-title {
+  margin: 0;
+}
 
 /* ── SKELETON LOADING ── */
 .skeleton {
@@ -1203,7 +1479,7 @@ select.input-field option { background: #fff; color: var(--text-primary); }
   color: rgba(255,255,255,0.5);
   border: 1px solid rgba(255,255,255,0.25);
   padding: 2px 8px;
-  border-radius: 2px;
+  border-radius: 0;
 }
 
 /* ── STATUS FINAL ── */
@@ -1250,3 +1526,18 @@ select.input-field option { background: #fff; color: var(--text-primary); }
 .items-center { align-items: center; }
 .gap-sm    { gap: var(--space-sm); }
 .gap-md    { gap: var(--space-md); }
+
+/* ── RESPONSIVE REFLOW ──
+   Text/logo sizing is fluid (see --topnav-h/--logo-size and the html
+   font-size clamp above) and needs no breakpoint. These two rules only
+   handle structural layout that would otherwise overflow on a tablet held
+   in portrait (~768-820px wide). */
+@media (max-width: 860px) {
+  .grid-sidebar {
+    grid-template-columns: 1fr;
+  }
+
+  .container {
+    padding: var(--space-lg) var(--space-md);
+  }
+}

@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import TopNav from '@/components/TopNav';
+import IdleLogout from '@/components/IdleLogout';
 
 function shouldHideGlobalNav(pathname: string): boolean {
   if (pathname.startsWith('/kiosk/track/')) return true;
@@ -23,14 +24,16 @@ export default function AppChrome({ children }: { children: React.ReactNode }) {
   }
 
   const isLogin = pathname === '/login' || pathname === '/kiosk/login';
+  const isKiosk = pathname.startsWith('/kiosk');
 
   return (
     <div className="page-wrapper">
+      {!isLogin && <IdleLogout portal={isKiosk ? 'kiosk' : 'staff'} />}
       <TopNav
         showCenterTitle={shouldShowHomeTitle(pathname) || isLogin}
-        centerTitle={isLogin ? 'Eastern Naval Command\nFile Status Management System' : undefined}
         showClock={!isLogin}
         showSessionMenu={!isLogin}
+        logoutHref={isKiosk ? '/api/auth/logout?portal=kiosk' : undefined}
         variant={isLogin ? 'login' : 'default'}
       />
       <main style={{ flex: 1 }}>{children}</main>

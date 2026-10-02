@@ -1,47 +1,31 @@
-import { cookies } from 'next/headers';
-import { jwtVerify } from 'jose';
 import TopNav from '@/components/TopNav';
 import GlobalScanListener from '@/components/GlobalScanListener';
 import Sidebar from '@/components/Sidebar';
-
-const SECRET_KEY = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'super-secret-key-for-dev'
-);
-
-async function getUserFromCookie() {
-  try {
-    const cookieStore = cookies();
-    const token = cookieStore.get('token')?.value;
-    if (!token) return null;
-    const { payload } = await jwtVerify(token, SECRET_KEY);
-    return {
-      role:             payload.role as string,
-      username:         payload.username as string,
-      loginDepartment:  payload.loginDepartment as string | null,
-    };
-  } catch {
-    return null;
-  }
-}
+import IdleLogout from '@/components/IdleLogout';
+import { getSessionUser } from '@/lib/session';
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const user = await getUserFromCookie();
+  const user = await getSessionUser();
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-page)', display: 'flex', flexDirection: 'column' }}>
       <GlobalScanListener />
+      <IdleLogout portal="staff" />
 
       {/* Global Top Navigation */}
       <TopNav
         showCenterTitle={true}
       />
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flex: 1 }}>
         {/* Sidebar Navigation */}
         <Sidebar role={user?.role ?? ''} />
 
-        {/* Page Content */}
-        <main style={{ flex: 1, overflowY: 'auto' }}>
+        {/* Page Content — flows naturally with the page; the whole page scrolls
+            rather than clipping content into an inner scroll region (which,
+            combined with the sidebar's min-height, could cut off long pages
+            like Master Data before their bottom was reachable). */}
+        <main style={{ flex: 1, minWidth: 0 }}>
           {children}
         </main>
       </div>

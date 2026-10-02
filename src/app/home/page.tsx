@@ -7,12 +7,11 @@ import styles from './page.module.css';
 
 import { Suspense } from 'react';
 
-const DEFAULT_DEPARTMENT = 'Logistics';
-
 function HomePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const department = searchParams.get('department') ?? DEFAULT_DEPARTMENT;
+  const departmentId = searchParams.get('departmentId') ?? '';
+  const department = searchParams.get('departmentName') ?? 'Department';
   const { time, date } = useISTClock();
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -35,7 +34,8 @@ function HomePageInner() {
 
     setError('');
     const params = new URLSearchParams({
-      department,
+      departmentId,
+      departmentName: department,
       from: fromDate,
       to: toDate,
     });

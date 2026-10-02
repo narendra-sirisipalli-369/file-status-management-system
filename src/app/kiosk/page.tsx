@@ -24,12 +24,11 @@ export default function KioskSplashPage() {
     }}>
       {/* Logos */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '2rem', marginBottom: '2rem' }}>
-        <Image src="/logo/ins-dega.png" alt="INS Dega" width={96} height={96} style={{ objectFit: 'contain' }} priority />
+        <Image src="/logo/eastern-command.png" alt="Eastern Naval Command" width={96} height={96} style={{ objectFit: 'contain', width: 'clamp(64px, 8vw, 96px)', height: 'auto' }} priority />
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontWeight: 900, fontSize: '1.5rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff' }}>INS DEGA</div>
-          <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', letterSpacing: '0.08em', marginTop: '0.25rem' }}>Eastern Naval Command - Indian Navy</div>
         </div>
-        <Image src="/logo/eastern-command.png" alt="Eastern Naval Command" width={96} height={96} style={{ objectFit: 'contain' }} priority />
+        <Image src="/logo/ins-dega.png" alt="INS Dega" width={112} height={112} style={{ objectFit: 'contain', width: 'clamp(76px, 9.5vw, 112px)', height: 'auto' }} priority />
       </div>
 
       {/* System title */}
@@ -50,10 +49,10 @@ export default function KioskSplashPage() {
       <button
         onClick={() => router.push('/kiosk/login')}
         style={{
-          minHeight: 80,
+          minHeight: 'clamp(56px, 6vw, 80px)',
           padding: '0 3rem',
           border: '3px solid #b8860b',
-          borderRadius: 8,
+          borderRadius: 0,
           background: 'transparent',
           color: '#fff',
           fontFamily: 'Arial, Helvetica, sans-serif',

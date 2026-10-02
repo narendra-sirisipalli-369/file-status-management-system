@@ -3,70 +3,72 @@
  * Provides QR generation metadata and fast O(1) resolution utilities.
  */
 
-export const STAGES = [
-  { key: 'Inward',              label: 'Inward',              color: 'var(--stage-inward)',  short: 'IN'  },
-  { key: 'D Logo',              label: 'D Logo',              color: 'var(--stage-dlogo)',   short: 'DL'  },
-  { key: 'B Logo',              label: 'B Logo',              color: 'var(--stage-blogo)',   short: 'BL'  },
-  { key: 'CO Stage',            label: 'CO Stage',            color: 'var(--stage-co)',      short: 'CO'  },
-  { key: 'Store Office',        label: 'Store Office',        color: 'var(--stage-store)',   short: 'SO'  },
-  { key: 'IFA',                 label: 'IFA',                 color: 'var(--stage-ifa)',     short: 'IFA' },
-  { key: 'Tender Prep',         label: 'Tender Preparation',  color: 'var(--stage-tender)',  short: 'TP'  },
-  { key: 'Tender Published',    label: 'Tender Published',    color: 'var(--stage-done)',    short: 'PUB' },
-  { key: 'Evolution',           label: 'Evolution',           color: 'var(--stage-done)',    short: 'EVO' },
-  { key: 'Bid Awarded',         label: 'Bid Awarded',         color: 'var(--stage-done)',    short: 'AWD' },
-  { key: 'CB Punching',         label: 'CB Punching',         color: 'var(--stage-done)',    short: 'CB'  },
-  { key: 'Forwarded to CDA/GEM',label: 'Forwarded to CDA/GEM',color: 'var(--stage-done)',   short: 'FWD' },
-  { key: 'Logo Office',         label: 'Logo Office',         color: 'var(--stage-dlogo)',   short: 'LO'  },
-  { key: 'Mailman',             label: 'Mailman',             color: 'var(--stage-co)',      short: 'MM'  },
-] as const;
-
-export type StageName = typeof STAGES[number]['key'];
-
-/**
- * Returns the index of a stage in the pipeline.
- * Used to determine "completion" of a stage in the SVG flow.
- */
-export function getStageIndex(stageName: string): number {
-  return STAGES.findIndex(s => s.key === stageName);
-}
-
-/**
- * Maps a current status string to a CSS badge class.
- */
+/** Maps a FileRecord.status enum value to a CSS badge class. */
 export function statusToBadge(status: string): string {
   const map: Record<string, string> = {
-    'Inward':           'badge-blue',
-    'D Logo':           'badge-purple',
-    'B Logo':           'badge-amber',
-    'CO Stage':         'badge-red',
-    'Store Office':     'badge-blue',
-    'IFA':              'badge-amber',
-    'Tender Prep':      'badge-amber',
-    'Tender Published': 'badge-green',
-    'Bid Awarded':      'badge-green',
+    DRAFT: 'badge-blue',
+    IN_PROGRESS: 'badge-amber',
+    ON_HOLD: 'badge-purple',
+    COMPLETED: 'badge-green',
+    CANCELLED: 'badge-red',
+    REJECTED: 'badge-red',
   };
   return map[status] ?? 'badge-blue';
 }
 
+const STAGE_PALETTE = [
+  '#2563eb', '#7c3aed', '#059669', '#d97706', '#dc2626',
+  '#0891b2', '#65a30d', '#c026d3', '#4f46e5', '#0d9488',
+];
+
 /**
- * Generates the QR code value from a fileId.
- * This is the string encoded into the QR image.
+ * Deterministic color for a stage name — stages are DB-driven data now (30+
+ * of them, admin-editable), so this replaces the several hand-maintained
+ * stage -> color maps that existed when stages were a fixed 14-item array.
  */
-export function buildQRValue(fileId: string): string {
-  return `FSMS_FILE:${fileId}`;
+export function colorForStage(stageName: string): string {
+  let hash = 0;
+  for (let i = 0; i < stageName.length; i++) {
+    hash = (hash * 31 + stageName.charCodeAt(i)) >>> 0;
+  }
+  return STAGE_PALETTE[hash % STAGE_PALETTE.length];
 }
 
 /**
- * Parses a raw QR scanned value and extracts the fileId.
- * Returns null if the value is not a valid FSMS QR code.
+ * Builds the full URL to a file's page — this is what gets encoded into the
+ * QR now printed on file labels. Scanning it with literally anything (this
+ * app's own listener, a phone camera, a browser address bar focused via the
+ * scanner's keystrokes) opens that exact file directly, with no parsing of
+ * free text required.
+ */
+export function buildFileUrl(fileId: string): string {
+  const base = process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000';
+  return `${base}/admin/file/${fileId}`;
+}
+
+/**
+ * Parses a raw QR scanned value and extracts an identifier that resolves a
+ * file (any of id / fileId / secureTrackingId / smsRefNo — see
+ * getFileRecordByAnyId). Returns null if nothing recognizable is found.
  */
 export function parseQRValue(raw: string): string | null {
+  const trimmed = raw.trim();
+
+  // Current format — a direct URL to the file's page (see buildFileUrl).
+  const urlMatch = trimmed.match(/\/admin\/file\/([^\s/?#]+)/i);
+  if (urlMatch) return urlMatch[1];
+
   const prefix = 'FSMS_FILE:';
-  if (raw.startsWith(prefix)) {
-    return raw.slice(prefix.length).trim();
+  if (trimmed.startsWith(prefix)) {
+    return trimmed.slice(prefix.length).trim();
   }
-  // Also support raw fileId directly (admin manual entry)
-  if (raw.length >= 10) return raw.trim();
+  // Legacy format — physical labels printed before the URL format above
+  // encode buildFileInfoQRText's multi-line human-readable text instead;
+  // pull the file number back out of it so those older labels keep working.
+  const fileNumberMatch = trimmed.match(/File Number:\s*(\S+)/i);
+  if (fileNumberMatch) return fileNumberMatch[1].trim();
+  // Also support a raw fileId/tracking id/sms ref entered or scanned directly.
+  if (trimmed.length >= 10 && !trimmed.includes('\n')) return trimmed;
   return null;
 }
 
@@ -91,11 +93,20 @@ export function formatDate(date: string | Date): string {
 }
 
 /**
- * Format datetime.
+ * Format datetime (24-hour time).
  */
 export function formatDateTime(date: string | Date): string {
   return new Date(date).toLocaleString('en-IN', {
     day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+}
+
+/**
+ * Format time only, 24-hour.
+ */
+export function formatTime(date: string | Date): string {
+  return new Date(date).toLocaleTimeString('en-IN', {
+    hour: '2-digit', minute: '2-digit', hour12: false,
   });
 }

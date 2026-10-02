@@ -1,662 +1,230 @@
-"use client";
+'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
-import { statusToBadge, formatDate, formatINR, STAGES } from '@/lib/qrService';
+import { useEffect, useState } from 'react';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { usePagination } from '@/hooks/usePagination';
+import Pagination from '@/components/Pagination';
 
-type FileRecord = {
-  id: string;
-  fileId: string;
-  secureTrackingId: string;
+type Lookup = { id: string; name: string };
+type HeadCode = { id: string; code: string; name: string };
+type Stage = { id: string; name: string };
+
+type ReportRow = {
+  fileRecordId: string;
   smsRefNo: string;
   description: string;
-  proposalValue: number;
-  head: string;
-  department: string;
-  typeProcessing: string;
-  status: string;
-  dateSubmission: string;
-  createdAt: string;
-  updatedAt: string;
-  histories: Array<{
-    id: string;
-    stageName: string;
-    inspectionBy: string;
-    remarks: string;
-    timestamp: string;
-  }>;
+  proposalValue: string;
+  departmentName: string;
+  headCodeCode: string;
+  headCodeName: string;
+  procurementModeName: string;
+  authorityName: string;
+  fileEnteredAt: string;
+  stageName: string;
+  sequenceOrder: number;
+  enteredAt: string | null;
+  exitedAt: string | null;
+  action: 'Complete' | 'Skipped' | 'In progress' | 'Pending';
 };
 
-type Metrics = {
-  total: number;
-  completed: number;
-  pending: number;
-  inProgress: number;
-  stageBreakdown: Record<string, number>;
-  deptBreakdown: Record<string, number>;
-  processingBreakdown: Record<string, number>;
-};
+const EMPTY = '';
 
-function computeMetrics(files: FileRecord[]): Metrics {
-  const stageBreakdown: Record<string, number> = {};
-  const deptBreakdown: Record<string, number>  = {};
-  const processingBreakdown: Record<string, number> = {};
-
-  for (const f of files) {
-    stageBreakdown[f.status]          = (stageBreakdown[f.status] ?? 0) + 1;
-    deptBreakdown[f.department]       = (deptBreakdown[f.department] ?? 0) + 1;
-    processingBreakdown[f.typeProcessing] = (processingBreakdown[f.typeProcessing] ?? 0) + 1;
-  }
-
-  const completed  = files.filter(f => ['Tender Published', 'Bid Awarded'].includes(f.status)).length;
-  const pending    = files.filter(f => f.status === 'Inward').length;
-  const inProgress = files.length - completed - pending;
-
-  return { total: files.length, completed, pending, inProgress, stageBreakdown, deptBreakdown, processingBreakdown };
+function fmtDateTime(v: string | null) {
+  if (!v) return '—';
+  return new Date(v).toLocaleString('en-IN', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
 }
-
-function fmtDateForDisplay(iso: string) {
-  // iso: YYYY-MM-DD -> display: MM / DD / YYYY
-  const [y, m, d] = iso.split('-');
-  if (!y || !m || !d) return iso;
-  return `${m} / ${d} / ${y}`;
-}
-
-function parseIsoDate(iso: string) {
-  if (!iso) return null;
-  const [y, m, d] = iso.split('-').map(Number);
-  if (!y || !m || !d) return null;
-  return new Date(y, m - 1, d);
-}
-
-function toIsoDate(date: Date) {
-  const yyyy = `${date.getFullYear()}`;
-  const mm = `${date.getMonth() + 1}`.padStart(2, '0');
-  const dd = `${date.getDate()}`.padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function getMonthMatrix(monthDate: Date) {
-  const year = monthDate.getFullYear();
-  const month = monthDate.getMonth();
-  const first = new Date(year, month, 1);
-  const startDay = first.getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const cells: Array<number | null> = [];
-  for (let i = 0; i < startDay; i += 1) cells.push(null);
-  for (let day = 1; day <= daysInMonth; day += 1) cells.push(day);
-  return { year, month, cells };
-}
-
-// Horizontal Bar row
-function HBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
-  const pct = max > 0 ? (value / max) * 100 : 0;
-  return (
-    <div style={{ marginBottom: '1.25rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', alignItems: 'flex-end' }}>
-        <span style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 'var(--letter-spacing-tech)', color: 'var(--text-muted)' }}>{label}</span>
-        <span style={{ fontSize: '1rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--navy)' }}>
-          {value}
-        </span>
-      </div>
-      <div style={{ height: 8, background: 'var(--bg-light)', borderRadius: 4, overflow: 'hidden', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)' }}>
-        <div
-          style={{
-            height: '100%',
-            width: `${pct}%`,
-            background: `linear-gradient(90deg, ${color}cc, ${color})`,
-            borderRadius: 4,
-            transition: 'width 1.2s cubic-bezier(0.22, 1, 0.36, 1)',
-            boxShadow: `0 0 12px ${color}44`,
-          }}
-        />
-      </div>
-    </div>
-  );
+function fmtINR(v: string) {
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(v));
 }
 
 export default function ReportsPage() {
-  const [files, setFiles]     = useState<FileRecord[]>([]);
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate]     = useState('');
-  const [dept, setDept]         = useState('');
-  const [departments, setDepartments] = useState<string[]>([]);
+  const [departments, setDepartments] = useState<Lookup[]>([]);
+  const [procurementModes, setProcurementModes] = useState<Lookup[]>([]);
+  const [authorities, setAuthorities] = useState<Lookup[]>([]);
+  const [headCodes, setHeadCodes] = useState<HeadCode[]>([]);
+  const [stages, setStages] = useState<Stage[]>([]);
 
-  const fromRowRef = useRef<HTMLDivElement | null>(null);
-  const toRowRef = useRef<HTMLDivElement | null>(null);
-  const [fromOpen, setFromOpen] = useState(false);
-  const [toOpen, setToOpen] = useState(false);
-  const [fromMonth, setFromMonth] = useState(() => new Date());
-  const [toMonth, setToMonth] = useState(() => new Date());
-  const [yearOptions] = useState(() => {
-    const nowYear = new Date().getFullYear();
-    const start = nowYear - 10;
-    return Array.from({ length: 21 }, (_, i) => start + i);
+  const [filters, setFilters] = useState({
+    q: EMPTY, departmentId: EMPTY, procurementModeId: EMPTY, authorityId: EMPTY,
+    headCodeId: EMPTY, stageId: EMPTY, from: EMPTY, to: EMPTY,
   });
 
-  const togglePicker = (which: 'from' | 'to') => {
-    const open = which === 'from' ? fromOpen : toOpen;
-    const setOpen = which === 'from' ? setFromOpen : setToOpen;
-    setOpen(!open);
-  };
+  const [rows, setRows] = useState<ReportRow[]>([]);
+  const { page, setPage, totalPages, pageItems: pagedRows } = usePagination(rows);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const fetchReports = async () => {
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/departments').then((r) => r.json()),
+      fetch('/api/procurement-modes').then((r) => r.json()),
+      fetch('/api/authorities').then((r) => r.json()),
+      fetch('/api/head-codes').then((r) => r.json()),
+      fetch('/api/stages?activeOnly=false').then((r) => r.json()),
+    ]).then(([d, pm, a, hc, s]) => {
+      setDepartments(d);
+      setProcurementModes(pm);
+      setAuthorities(a);
+      setHeadCodes(hc);
+      setStages(s);
+    });
+  }, []);
+
+  function buildQuery(): string {
+    const p = new URLSearchParams();
+    Object.entries(filters).forEach(([k, v]) => { if (v) p.set(k, v); });
+    return p.toString();
+  }
+
+  // Auto-applies on load and on every filter change — no "Apply Filters"
+  // button. Debounced so typing in Search doesn't fire a request per keystroke.
+  useEffect(() => {
     setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (fromDate) params.set('from', fromDate);
-      if (toDate)   params.set('to',   toDate);
-      if (dept)     params.set('dept', dept);
-      const res  = await fetch(`/api/files?${params}`);
-      const data: FileRecord[] = await res.json();
-      if (Array.isArray(data)) {
-        setFiles(data);
-        setMetrics(computeMetrics(data));
-        const depts = Array.from(new Set(data.map((f: any) => f.department)));
-        setDepartments(depts);
+    setError('');
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/reports?${buildQuery()}`);
+        if (!res.ok) {
+          setError('Failed to load report.');
+          return;
+        }
+        setRows(await res.json());
+      } catch {
+        setError('Network error.');
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  };
+    }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
 
-  useEffect(() => { fetchReports(); }, []);
-
-  useEffect(() => {
-    if (fromOpen) {
-      const selected = parseIsoDate(fromDate);
-      setFromMonth(selected ?? new Date());
-    }
-  }, [fromOpen, fromDate]);
-
-  useEffect(() => {
-    if (toOpen) {
-      const selected = parseIsoDate(toDate);
-      setToMonth(selected ?? new Date());
-    }
-  }, [toOpen, toDate]);
-
-  useEffect(() => {
-    if (!fromOpen) return;
-    const onClick = (event: MouseEvent) => {
-      if (!fromRowRef.current?.contains(event.target as Node)) {
-        setFromOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
-  }, [fromOpen]);
-
-  useEffect(() => {
-    if (!toOpen) return;
-    const onClick = (event: MouseEvent) => {
-      if (!toRowRef.current?.contains(event.target as Node)) {
-        setToOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
-  }, [toOpen]);
-
-  const maxStage = metrics ? Math.max(...Object.values(metrics.stageBreakdown), 1) : 1;
-  const maxDept  = metrics ? Math.max(...Object.values(metrics.deptBreakdown), 1) : 1;
-
-  // Color per stage
-  const stageColors: Record<string, string> = {
-    'Inward': 'var(--stage-inward)', 'D Logo': 'var(--stage-dlogo)', 'B Logo': 'var(--stage-blogo)',
-    'CO Stage': 'var(--stage-co)', 'Store Office': 'var(--stage-store)', 'IFA': 'var(--stage-ifa)',
-    'Tender Prep': 'var(--stage-tender)', 'Tender Published': 'var(--neon-green)', 'Bid Awarded': 'var(--neon-green)',
-  };
+  const downloadHref = (format: 'xlsx' | 'pdf' | 'docx') => `/api/reports/export?format=${format}&${buildQuery()}`;
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-void)' }}>
-      {/* Handled by AdminLayout, but Reports has its own layout sometimes. 
-          Actually, Reports is inside AdminLayout usually. Let's check layout.tsx.
-          If it's already in the layout, we don't need the nav here. 
-          Looking at the code, ReportsPage is a full page.
-      */}
-      
-      <div className="page-header">
-        <div>
-          <div className="page-title">Reports & Analytics</div>
-          <div className="page-sub">Comprehensive pipeline performance data</div>
-        </div>
-      </div>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }}>
+      <PageHeader title="Reports" subtitle="Filters apply automatically — download as Excel, PDF, or Word below." />
 
       <div className="container">
-
-        {/* ── FILTER BAR ── */}
-        <div className="glass-panel mb-lg" style={{ padding: 'var(--space-md)', borderRadius: 'var(--radius-lg)' }}>
-          <form
-            onSubmit={e => { e.preventDefault(); fetchReports(); }}
-            style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr)) auto', gap: 'var(--space-md)', alignItems: 'end' }}
-          >
-            <div className="input-group">
-              <label style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>From Date</label>
-              <div className="date-row" ref={fromRowRef} style={{ marginBottom: fromOpen ? '18rem' : undefined }}>
-                <input
-                  id="reports-from-display"
-                  type="text"
-                  className="input-field date-field"
-                  value={fromDate ? fmtDateForDisplay(fromDate) : ''}
-                  placeholder="mm / dd / yyyy"
-                  readOnly
-                  onClick={() => togglePicker('from')}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      togglePicker('from');
-                    }
-                  }}
-                />
-                <button
-                  type="button"
-                  className="date-toggle"
-                  aria-label={fromOpen ? 'Close calendar' : 'Open calendar'}
-                  aria-pressed={fromOpen}
-                  onMouseDown={e => e.preventDefault()}
-                  onClick={() => togglePicker('from')}
-                >
-                  <Calendar size={18} aria-hidden="true" />
-                </button>
-                {fromOpen && (
-                  <div className="calendar-popover" role="dialog" aria-label="Choose From Date">
-                    <div className="calendar-header">
-                      <button
-                        type="button"
-                        className="calendar-nav"
-                        aria-label="Previous month"
-                        onClick={() => setFromMonth(new Date(fromMonth.getFullYear(), fromMonth.getMonth() - 1, 1))}
-                      >
-                        <ChevronLeft size={16} />
-                      </button>
-                      <div className="calendar-title">
-                        {fromMonth.toLocaleString('en-US', { month: 'long' })}
-                      </div>
-                      <select
-                        className="calendar-year"
-                        aria-label="Select year"
-                        value={fromMonth.getFullYear()}
-                        onChange={e => {
-                          const year = Number(e.target.value);
-                          setFromMonth(new Date(year, fromMonth.getMonth(), 1));
-                        }}
-                      >
-                        {yearOptions.map(year => (
-                          <option key={year} value={year}>{year}</option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        className="calendar-nav"
-                        aria-label="Next month"
-                        onClick={() => setFromMonth(new Date(fromMonth.getFullYear(), fromMonth.getMonth() + 1, 1))}
-                      >
-                        <ChevronRight size={16} />
-                      </button>
-                    </div>
-                    <div className="calendar-week">
-                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                        <span key={day}>{day}</span>
-                      ))}
-                    </div>
-                    <div className="calendar-grid">
-                      {getMonthMatrix(fromMonth).cells.map((day, idx) => {
-                        if (!day) return <span key={`rf-${idx}`} className="calendar-day is-empty" />;
-                        const date = new Date(fromMonth.getFullYear(), fromMonth.getMonth(), day);
-                        const iso = toIsoDate(date);
-                        const selected = iso === fromDate;
-                        return (
-                          <button
-                            type="button"
-                            key={`rf-${idx}`}
-                            className={`calendar-day${selected ? ' is-selected' : ''}`}
-                            onClick={() => {
-                              setFromDate(iso);
-                              setFromOpen(false);
-                            }}
-                          >
-                            {day}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="input-group">
-              <label style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>To Date</label>
-              <div className="date-row" ref={toRowRef} style={{ marginBottom: toOpen ? '18rem' : undefined }}>
-                <input
-                  id="reports-to-display"
-                  type="text"
-                  className="input-field date-field"
-                  value={toDate ? fmtDateForDisplay(toDate) : ''}
-                  placeholder="mm / dd / yyyy"
-                  readOnly
-                  onClick={() => togglePicker('to')}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      togglePicker('to');
-                    }
-                  }}
-                />
-                <button
-                  type="button"
-                  className="date-toggle"
-                  aria-label={toOpen ? 'Close calendar' : 'Open calendar'}
-                  aria-pressed={toOpen}
-                  onMouseDown={e => e.preventDefault()}
-                  onClick={() => togglePicker('to')}
-                >
-                  <Calendar size={18} aria-hidden="true" />
-                </button>
-                {toOpen && (
-                  <div className="calendar-popover" role="dialog" aria-label="Choose To Date">
-                    <div className="calendar-header">
-                      <button
-                        type="button"
-                        className="calendar-nav"
-                        aria-label="Previous month"
-                        onClick={() => setToMonth(new Date(toMonth.getFullYear(), toMonth.getMonth() - 1, 1))}
-                      >
-                        <ChevronLeft size={16} />
-                      </button>
-                      <div className="calendar-title">
-                        {toMonth.toLocaleString('en-US', { month: 'long' })}
-                      </div>
-                      <select
-                        className="calendar-year"
-                        aria-label="Select year"
-                        value={toMonth.getFullYear()}
-                        onChange={e => {
-                          const year = Number(e.target.value);
-                          setToMonth(new Date(year, toMonth.getMonth(), 1));
-                        }}
-                      >
-                        {yearOptions.map(year => (
-                          <option key={year} value={year}>{year}</option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        className="calendar-nav"
-                        aria-label="Next month"
-                        onClick={() => setToMonth(new Date(toMonth.getFullYear(), toMonth.getMonth() + 1, 1))}
-                      >
-                        <ChevronRight size={16} />
-                      </button>
-                    </div>
-                    <div className="calendar-week">
-                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                        <span key={day}>{day}</span>
-                      ))}
-                    </div>
-                    <div className="calendar-grid">
-                      {getMonthMatrix(toMonth).cells.map((day, idx) => {
-                        if (!day) return <span key={`rt-${idx}`} className="calendar-day is-empty" />;
-                        const date = new Date(toMonth.getFullYear(), toMonth.getMonth(), day);
-                        const iso = toIsoDate(date);
-                        const selected = iso === toDate;
-                        return (
-                          <button
-                            type="button"
-                            key={`rt-${idx}`}
-                            className={`calendar-day${selected ? ' is-selected' : ''}`}
-                            onClick={() => {
-                              setToDate(iso);
-                              setToOpen(false);
-                            }}
-                          >
-                            {day}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="input-group">
-              <label style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Department</label>
-              <select className="input-field" value={dept} onChange={e => setDept(e.target.value)} style={{ background: 'var(--bg-white)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.5rem', width: '100%' }}>
-                <option value="">All Departments</option>
-                {departments.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
-            </div>
-            <button type="submit" className="btn btn-primary" disabled={loading} style={{ minHeight: 40 }}>
-              {loading ? 'Processing...' : 'Generate Report'}
-            </button>
-          </form>
-
-          {/* ── CSV Export ── */}
-          <div style={{ marginTop: 'var(--space-md)', paddingTop: 'var(--space-md)', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: 'var(--letter-spacing-tech)' }}>
-              Audit Export
-            </span>
-            <a
-              id="csv-export-btn"
-              href={`/api/files/export?${new URLSearchParams(
-                Object.fromEntries(
-                  Object.entries({ from: fromDate, to: toDate, dept }).filter(([, v]) => v !== '')
-                )
-              )}`}
-              download
-              style={{
-                display:         'inline-flex',
-                alignItems:      'center',
-                gap:             '0.5rem',
-                minHeight:       '48px',
-                padding:         '0 1.5rem',
-                backgroundColor: '#000080',
-                color:           '#FFFFFF',
-                border:          'none',
-                borderRadius:    '4px',
-                fontSize:        '0.72rem',
-                fontWeight:      700,
-                letterSpacing:   '0.08em',
-                textTransform:   'uppercase',
-                textDecoration:  'none',
-                cursor:          'pointer',
-                fontFamily:      'inherit',
-              }}
-            >
-              ↓ Download Audit Log (CSV)
-            </a>
-            <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>
-              Exports all files &amp; complete status history — formatted for physical printing
-            </span>
+        <div
+          className="card"
+          style={{
+            marginBottom: 'var(--space-lg)', display: 'flex', flexWrap: 'wrap',
+            alignItems: 'flex-end', gap: 'var(--space-sm)', padding: 'var(--space-md)',
+          }}
+        >
+          <div className="input-group" style={{ flex: '1 1 200px', minWidth: 160, margin: 0 }}>
+            <label>Search</label>
+            <input className="input-field" value={filters.q} onChange={(e) => setFilters((p) => ({ ...p, q: e.target.value }))} placeholder="Description / ref / tracking ID" />
           </div>
+          <div className="input-group" style={{ flex: '1 1 150px', minWidth: 140, margin: 0 }}>
+            <label>Department</label>
+            <select className="input-field" value={filters.departmentId} onChange={(e) => setFilters((p) => ({ ...p, departmentId: e.target.value }))}>
+              <option value={EMPTY}>All departments</option>
+              {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+          </div>
+          <div className="input-group" style={{ flex: '1 1 150px', minWidth: 140, margin: 0 }}>
+            <label>Mode</label>
+            <select className="input-field" value={filters.procurementModeId} onChange={(e) => setFilters((p) => ({ ...p, procurementModeId: e.target.value }))}>
+              <option value={EMPTY}>All modes</option>
+              {procurementModes.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          </div>
+          <div className="input-group" style={{ flex: '1 1 150px', minWidth: 140, margin: 0 }}>
+            <label>Authority</label>
+            <select className="input-field" value={filters.authorityId} onChange={(e) => setFilters((p) => ({ ...p, authorityId: e.target.value }))}>
+              <option value={EMPTY}>All authorities</option>
+              {authorities.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </div>
+          <div className="input-group" style={{ flex: '1 1 150px', minWidth: 140, margin: 0 }}>
+            <label>Head Code</label>
+            <select className="input-field" value={filters.headCodeId} onChange={(e) => setFilters((p) => ({ ...p, headCodeId: e.target.value }))}>
+              <option value={EMPTY}>All head codes</option>
+              {headCodes.map((h) => <option key={h.id} value={h.id}>{h.code} — {h.name}</option>)}
+            </select>
+          </div>
+          <div className="input-group" style={{ flex: '1 1 150px', minWidth: 140, margin: 0 }}>
+            <label>Stage</label>
+            <select className="input-field" value={filters.stageId} onChange={(e) => setFilters((p) => ({ ...p, stageId: e.target.value }))}>
+              <option value={EMPTY}>All stages</option>
+              {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+          <div className="input-group" style={{ flex: '1 1 130px', minWidth: 130, margin: 0 }}>
+            <label>From</label>
+            <input type="date" className="input-field" value={filters.from} onChange={(e) => setFilters((p) => ({ ...p, from: e.target.value }))} />
+          </div>
+          <div className="input-group" style={{ flex: '1 1 130px', minWidth: 130, margin: 0 }}>
+            <label>To</label>
+            <input type="date" className="input-field" value={filters.to} onChange={(e) => setFilters((p) => ({ ...p, to: e.target.value }))} />
+          </div>
+          {loading && <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', flex: '0 0 auto', paddingBottom: '0.6rem' }}>Searching...</span>}
         </div>
 
-        {/* ── SUMMARY METRICS ── */}
-        {metrics && (
-          <div className="metrics-grid mb-lg" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 'var(--space-md)' }}>
-            {[
-              { label: 'Total Files', value: metrics.total, sub: 'All registered files', color: 'var(--navy)' },
-              { label: 'Completed', value: metrics.completed, sub: 'Tender Published / Awarded', color: 'var(--success)' },
-              { label: 'In Progress', value: metrics.inProgress, sub: 'Active pipeline stages', color: 'var(--gold)' },
-              { label: 'At Inward', value: metrics.pending, sub: 'Awaiting first action', color: 'var(--stage-inward)' },
-            ].map(m => (
-              <div className="metric-card glass-panel" key={m.label} style={{ position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '4px', background: m.color }} />
-                <div className="metric-label" style={{ letterSpacing: 'var(--letter-spacing-tech)', fontWeight: 700, fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>{m.label}</div>
-                <div className="metric-value" style={{ fontSize: '2.4rem', fontWeight: 800, color: 'var(--navy)', margin: '0.5rem 0' }}>{String(m.value).padStart(3, '0')}</div>
-                <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{m.sub}</div>
-              </div>
-            ))}
-          </div>
-        )}
+        {error && <div className="alert alert-error mb-lg">{error}</div>}
 
-        {/* ── CHARTS ROW ── */}
-        {metrics && (
-          <div className="grid-2 mb-lg" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 'var(--space-md)' }}>
-
-            {/* Stage Breakdown Chart */}
-            <div className="glass-panel" style={{ padding: 'var(--space-lg)', borderRadius: 'var(--radius-lg)' }}>
-              <div className="section-title mb-lg" style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 'var(--letter-spacing-wide)', color: 'var(--navy)' }}>Pipeline Distribution</div>
-              {STAGES.map(s => (
-                <HBar
-                  key={s.key}
-                  label={s.label}
-                  value={metrics.stageBreakdown[s.key] ?? 0}
-                  max={maxStage}
-                  color={stageColors[s.key] ?? 'var(--navy)'}
-                />
-              ))}
-            </div>
-
-            {/* Dept + Processing Breakdown */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-              <div className="glass-panel" style={{ padding: 'var(--space-lg)', borderRadius: 'var(--radius-lg)' }}>
-                <div className="section-title mb-lg" style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 'var(--letter-spacing-wide)', color: 'var(--navy)' }}>Departmental Load</div>
-                {Object.entries(metrics.deptBreakdown).length === 0
-                  ? <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>No data</div>
-                  : Object.entries(metrics.deptBreakdown).map(([d, v]) => (
-                    <HBar key={d} label={d} value={v} max={maxDept} color="var(--navy)" />
-                  ))
-                }
-              </div>
-
-              <div className="glass-panel" style={{ padding: 'var(--space-lg)', borderRadius: 'var(--radius-lg)' }}>
-                <div className="section-title mb-lg" style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 'var(--letter-spacing-wide)', color: 'var(--navy)' }}>Processing Architecture</div>
-                {/* Horizontal Donut-style breakdown */}
-                {Object.entries(metrics.processingBreakdown).map(([type, count]) => {
-                  const pct = metrics.total > 0 ? Math.round((count / metrics.total) * 100) : 0;
-                  return (
-                    <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-lg)', marginBottom: '1rem' }}>
-                      {/* Mini donut */}
-                      <svg width="48" height="48" viewBox="0 0 40 40" style={{ flexShrink: 0 }}>
-                        <circle cx="20" cy="20" r="16" fill="none" stroke="var(--bg-light)" strokeWidth="6" />
-                        <circle
-                          cx="20" cy="20" r="16"
-                          fill="none"
-                          stroke="var(--gold)"
-                          strokeWidth="6"
-                          strokeDasharray={`${(pct / 100) * 100.5} 100.5`}
-                          strokeLinecap="round"
-                          transform="rotate(-90 20 20)"
-                        />
-                        <text x="20" y="24" textAnchor="middle" fontSize="9" fontWeight="800" fill="var(--navy)" fontFamily="sans-serif">
-                          {pct}%
-                        </text>
-                      </svg>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--navy)', letterSpacing: 'var(--letter-spacing-tech)' }}>{type}</div>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{count} file{count !== 1 ? 's' : ''}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── FULL FILE TABLE ── */}
-        <div className="glass-card" style={{ padding: 0 }}>
-          <div style={{ padding: 'var(--space-lg) var(--space-lg) var(--space-md)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div className="section-title">Full File Register</div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-              {files.length} records
-            </div>
+        <div className="card">
+          <div className="card-header">
+            Results
+            <span style={{ float: 'right', fontFamily: 'var(--font-mono)', fontSize: '0.65rem', fontWeight: 400, color: 'var(--text-muted)' }}>
+              {rows.length} row{rows.length !== 1 ? 's' : ''}
+            </span>
           </div>
 
-          {loading ? (
-            <div style={{ padding: 'var(--space-lg)' }}>
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="skeleton skeleton-row" style={{ marginBottom: 1 }} />
-              ))}
-            </div>
-          ) : (
-            <div className="table-wrap" style={{ border: 'none', borderRadius: 0 }}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Ref No</th>
-                    <th>Description</th>
-                    <th>Dept</th>
-                    <th>Type</th>
-                    <th>Value (INR)</th>
-                    <th>Submitted</th>
-                    <th>Stage</th>
-                    <th>Last Action</th>
-                    <th>View</th>
+          <div style={{ display: 'flex', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
+            <a className="btn btn-secondary btn-sm" href={downloadHref('xlsx')}>Download Excel</a>
+            <a className="btn btn-secondary btn-sm" href={downloadHref('pdf')}>Download PDF</a>
+            <a className="btn btn-secondary btn-sm" href={downloadHref('docx')}>Download Word</a>
+          </div>
+
+          <div className="table-wrap" style={{ marginTop: 0 }}>
+            <table className="data-table compact" aria-label="Report Preview">
+              <thead>
+                <tr>
+                  <th>Case Description</th>
+                  <th>Proposal Value</th>
+                  <th>Department</th>
+                  <th>Head Code</th>
+                  <th>Mode</th>
+                  <th>Authority</th>
+                  <th>File Entered</th>
+                  <th>Stage</th>
+                  <th>Entered</th>
+                  <th>Exited</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading && (
+                  <tr><td colSpan={11} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>Loading...</td></tr>
+                )}
+                {!loading && rows.length === 0 && (
+                  <tr><td colSpan={11} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No matching rows.</td></tr>
+                )}
+                {!loading && pagedRows.map((r) => (
+                  <tr key={`${r.fileRecordId}-${r.sequenceOrder}`}>
+                    <td className="preserve-case" style={{ maxWidth: 220 }}>{r.description}</td>
+                    <td style={{ fontFamily: 'var(--font-mono)' }}>{fmtINR(r.proposalValue)}</td>
+                    <td>{r.departmentName}</td>
+                    <td style={{ fontFamily: 'var(--font-mono)' }}>{r.headCodeCode} — {r.headCodeName}</td>
+                    <td>{r.procurementModeName}</td>
+                    <td>{r.authorityName}</td>
+                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>{fmtDateTime(r.fileEnteredAt)}</td>
+                    <td>{r.stageName}</td>
+                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>{fmtDateTime(r.enteredAt)}</td>
+                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>{fmtDateTime(r.exitedAt)}</td>
+                    <td>{r.action}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {files.length === 0 && (
-                    <tr>
-                      <td colSpan={10} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                        No files found for selected filters.
-                      </td>
-                    </tr>
-                  )}
-                  {files.map((f, i) => (
-                    <tr key={f.id} style={{ transition: 'var(--transition)' }}>
-                      <td style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.65rem' }}>{String(i + 1).padStart(2, '0')}</td>
-                      <td>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--navy)', fontWeight: 700, letterSpacing: '0.02em', fontFamily: 'var(--font-mono)' }}>
-                          {f.smsRefNo}
-                        </span>
-                      </td>
-                      <td style={{ maxWidth: 200 }}>
-                        <div style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.description}</div>
-                      </td>
-                      <td style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>{f.department}</td>
-                      <td>
-                        <span style={{ fontSize: '0.62rem', padding: '3px 8px', background: 'var(--bg-light)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 2, fontWeight: 700, textTransform: 'uppercase' }}>
-                          {f.typeProcessing}
-                        </span>
-                      </td>
-                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', fontWeight: 600 }}>
-                        {formatINR(f.proposalValue)}
-                      </td>
-                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                        {formatDate(f.dateSubmission)}
-                      </td>
-                      <td>
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          padding: '4px 10px',
-                          background: `${stageColors[f.status] ?? 'var(--navy)'}12`,
-                          borderLeft: `3px solid ${stageColors[f.status] ?? 'var(--navy)'}`,
-                          color: stageColors[f.status] ?? 'var(--navy)',
-                          borderRadius: '2px',
-                          fontSize: '0.62rem',
-                          fontWeight: 800,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.08em',
-                        }}>
-                          {f.status}
-                        </span>
-                      </td>
-                      <td style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {f.histories[0]
-                          ? `${f.histories[0].inspectionBy}: ${f.histories[0].remarks}`
-                          : '-'}
-                      </td>
-                      <td>
-                        <a
-                          href={`/admin/file/${f.secureTrackingId}`}
-                          className="row-btn"
-                          style={{ width: 'auto', fontSize: '0.6rem', padding: '0 0.75rem' }}
-                        >
-                          Open
-                        </a>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         </div>
       </div>
     </div>
